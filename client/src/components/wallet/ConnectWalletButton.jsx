@@ -106,6 +106,11 @@ export default function ConnectWalletButton() {
               width: '240px',
               padding: '8px',
               zIndex: 1000,
+              background: 'rgba(13, 13, 26, 0.97)',
+              border: '1px solid rgba(255, 255, 255, 0.14)',
+              boxShadow: '0 16px 48px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(37, 99, 235, 0.12)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
             }}
           >
             <div style={{
