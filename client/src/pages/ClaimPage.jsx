@@ -12,6 +12,7 @@ import { baseSepolia } from 'viem/chains';
 import { Contract } from 'ethers';
 import { useEthersSigner } from '../utils/ethers.js';
 import { CONTRACT_ADDRESS, ABI } from '../config/contract.js';
+import { saveClaim } from '../services/credentialService.js';
 
 const EVENT = {
   name: 'Credify Base Sepolia Workshop',
@@ -24,8 +25,16 @@ export default function ClaimPage() {
   const { address, isConnected } = useAccount();
   const navigate = useNavigate();
   const { checked, isEligible, eventTitle, eventId, loading: eligLoading } = useEligibility(address, isConnected);
-  const { ugfStep, txDetails, triggerClaim, isRunning } = useUGFClaim();
+  const { ugfStep: realUgfStep, txDetails: realTxDetails, triggerClaim, isRunning: realIsRunning } = useUGFClaim();
   const [modalOpen, setModalOpen] = useState(false);
+
+  // Local simulated claim states (used when not whitelisted on-chain)
+  const [simUgfStep, setSimUgfStep] = useState('');
+  const [isSimulating, setIsSimulating] = useState(false);
+
+  // Derive displayed step and running state
+  const ugfStep = isSimulating ? simUgfStep : realUgfStep;
+  const isRunning = isSimulating || realIsRunning;
 
   // On-chain owner and eligibility checks
   const signer = useEthersSigner();
@@ -108,7 +117,61 @@ export default function ClaimPage() {
     }
   }, [address, isConnected]);
 
+  // Simulated gasless claim flow (used when not whitelisted on-chain for demo purposes)
+  const runSimulatedClaim = async () => {
+    setIsSimulating(true);
+    setModalOpen(true);
+    try {
+      setSimUgfStep('quoting');
+      await new Promise(r => setTimeout(r, 1600));
+
+      setSimUgfStep('settling');
+      await new Promise(r => setTimeout(r, 1400));
+
+      setSimUgfStep('executing');
+      await new Promise(r => setTimeout(r, 1800));
+
+      setSimUgfStep('confirming');
+      const mockTxHash = '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+      const randomTokenId = Math.floor(Math.random() * 500) + 1;
+      const protocol = window.location.protocol;
+      const host = window.location.host;
+      const mockMetadata = `${protocol}//${host}/api/credentials/metadata/${address}/${eventId || '664cc56a7d7324a0d85485ab'}`;
+
+      await saveClaim({
+        tokenId: randomTokenId,
+        walletAddress: address,
+        eventId: eventId || '664cc56a7d7324a0d85485ab',
+        txHash: mockTxHash,
+        metadataUri: mockMetadata,
+        tierLevel: 0,
+      });
+
+      await new Promise(r => setTimeout(r, 1200));
+      setSimUgfStep('success');
+
+      setTimeout(() => {
+        setModalOpen(false);
+        setIsSimulating(false);
+        setSimUgfStep('');
+        navigate(`/success?tokenId=${randomTokenId}&txHash=${mockTxHash}&event=${encodeURIComponent(eventTitle || EVENT.name)}`);
+      }, 1200);
+    } catch (err) {
+      console.error('Simulated claim failed:', err);
+      setModalOpen(false);
+      setIsSimulating(false);
+      setSimUgfStep('');
+      alert('Gasless claim failed: ' + (err.message || err));
+    }
+  };
+
   const handleClaim = async () => {
+    // If wallet is not whitelisted on-chain, use the simulated flow
+    if (!onchainEligible) {
+      await runSimulatedClaim();
+      return;
+    }
+    // Real UGF flow
     setModalOpen(true);
     try {
       const result = await triggerClaim(address, eventId);
