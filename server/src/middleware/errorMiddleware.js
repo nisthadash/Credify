@@ -15,6 +15,12 @@ const errorHandler = (err, req, res, next) => {
     errors = Object.values(err.errors).map(val => val.message);
   }
 
+  // Handle Mongoose CastError (invalid ObjectId format)
+  if (err.name === 'CastError') {
+    statusCode = 400;
+    message = `Invalid ID format for field ${err.path || 'id'}: ${err.value}`;
+  }
+
   // Handle Mongoose duplicate key errors
   if (err.code === 11000) {
     statusCode = 400;

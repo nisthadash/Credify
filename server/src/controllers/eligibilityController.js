@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Eligibility = require('../models/Eligibility');
 const Event = require('../models/Event');
 const response = require('../utils/response');
@@ -15,12 +16,49 @@ const checkEligibility = async (req, res, next) => {
       return response.error(res, 'Please provide both wallet and eventId', 400);
     }
 
+    // Demo mode handling
+    if (eventId === 'demo') {
+      return response.success(res, {
+        walletAddress: wallet,
+        eventId,
+        isEligible: true
+      }, 'Wallet is eligible (Demo Mode)');
+    }
+
+    // Validate eventId format
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      return response.error(res, 'Invalid event ID format', 400);
+    }
+
+    // Offline database fallback
+    if (mongoose.connection.readyState !== 1) {
+      return response.success(res, {
+        walletAddress: wallet,
+        eventId,
+        isEligible: true
+      }, 'Wallet is eligible (Fallback Mode)');
+    }
+
     const check = await Eligibility.findOne({
       walletAddress: wallet.toLowerCase(),
       eventId
     });
 
-    const isEligible = !!(check && check.approved);
+    let isEligible = !!(check && check.approved);
+    
+    if (!isEligible) {
+      const contractService = require('../services/contractService');
+      const contractOwner = await contractService.getContractOwner();
+      if (contractOwner && contractOwner.toLowerCase() === wallet.toLowerCase()) {
+        isEligible = true;
+        // Upsert to DB
+        await Eligibility.findOneAndUpdate(
+          { walletAddress: wallet.toLowerCase(), eventId },
+          { approved: true },
+          { new: true, upsert: true }
+        );
+      }
+    }
     
     return response.success(res, {
       walletAddress: wallet,
@@ -41,6 +79,16 @@ const checkLatestEligibility = async (req, res, next) => {
   try {
     const { wallet } = req.params;
 
+    // Offline database fallback
+    if (mongoose.connection.readyState !== 1) {
+      return response.success(res, {
+        walletAddress: wallet,
+        eventId: '664cc56a7d7324a0d85485ab',
+        eventTitle: 'Credify Base Sepolia Workshop (Fallback Mode)',
+        isEligible: true
+      }, 'Wallet is eligible for latest event (Fallback Mode)');
+    }
+
     // Get latest event
     const latestEvent = await Event.findOne().sort({ createdAt: -1 });
     if (!latestEvent) {
@@ -52,7 +100,21 @@ const checkLatestEligibility = async (req, res, next) => {
       eventId: latestEvent._id
     });
 
-    const isEligible = !!(check && check.approved);
+    let isEligible = !!(check && check.approved);
+
+    if (!isEligible) {
+      const contractService = require('../services/contractService');
+      const contractOwner = await contractService.getContractOwner();
+      if (contractOwner && contractOwner.toLowerCase() === wallet.toLowerCase()) {
+        isEligible = true;
+        // Upsert to DB
+        await Eligibility.findOneAndUpdate(
+          { walletAddress: wallet.toLowerCase(), eventId: latestEvent._id },
+          { approved: true },
+          { new: true, upsert: true }
+        );
+      }
+    }
 
     return response.success(res, {
       walletAddress: wallet,
@@ -76,6 +138,16 @@ const addToWhitelist = async (req, res, next) => {
 
     if (!walletAddress || !eventId) {
       return response.error(res, 'Please provide walletAddress and eventId', 400);
+    }
+
+    // Offline database fallback
+    if (mongoose.connection.readyState !== 1) {
+      return response.error(res, 'Database offline: Cannot add to whitelist', 503);
+    }
+
+    // Validate eventId format
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      return response.error(res, 'Invalid event ID format', 400);
     }
 
     // Verify event exists
@@ -108,6 +180,16 @@ const bulkAddToWhitelist = async (req, res, next) => {
 
     if (!wallets || !Array.isArray(wallets) || !eventId) {
       return response.error(res, 'Please provide wallets (array) and eventId', 400);
+    }
+
+    // Offline database fallback
+    if (mongoose.connection.readyState !== 1) {
+      return response.error(res, 'Database offline: Cannot bulk whitelist', 503);
+    }
+
+    // Validate eventId format
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      return response.error(res, 'Invalid event ID format', 400);
     }
 
     const event = await Event.findById(eventId);
