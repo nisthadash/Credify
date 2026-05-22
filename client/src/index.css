@@ -187,10 +187,11 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-body);
   font-weight: 600;
   font-size: 14px;
-  border-radius: var(--radius-md);
-  border: none;
+  border-radius: 10em;
   cursor: pointer;
-  transition: background var(--t), color var(--t), border-color var(--t), transform var(--t), opacity var(--t);
+  transition: all 0.3s ease-in-out;
+  border: 1px solid #000000;
+  box-shadow: 0 0 0 0 #000000;
   white-space: nowrap;
   text-decoration: none;
   height: 40px;
@@ -199,39 +200,191 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: 0;
 }
 
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn:active:not(:disabled) { transform: scale(0.97); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-4px) translateX(-2px);
+  box-shadow: 2px 5px 0 0 #000000;
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(2px) translateX(1px);
+  box-shadow: 0 0 0 0 #000000;
+}
 
 .btn-primary {
-  background: var(--primary);
-  color: #fff;
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #000000;
 }
-.btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+.btn-primary:hover:not(:disabled) {
+  background: #f4f4f4;
+}
 
 .btn-ghost {
   background: transparent;
-  color: var(--text-muted);
-  border: 1px solid var(--border);
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
 }
-.btn-ghost:hover:not(:disabled) { background: var(--surface-hover); color: var(--text); border-color: rgba(255,255,255,0.15); }
+.btn-ghost:hover:not(:disabled) {
+  border-color: #ffffff;
+  box-shadow: 2px 5px 0 0 #ffffff;
+}
+.btn-ghost:active:not(:disabled) {
+  box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+}
 
 .btn-secondary {
-  background: var(--primary-soft);
-  color: #93c5fd;
-  border: 1px solid rgba(37,99,235,0.25);
+  background: var(--secondary);
+  color: #000000;
+  border: 1px solid #000000;
 }
-.btn-secondary:hover:not(:disabled) { background: rgba(37,99,235,0.18); }
+.btn-secondary:hover:not(:disabled) {
+  background: #6c77df;
+}
 
 .btn-danger {
-  background: rgba(239,68,68,0.1);
-  color: #fca5a5;
-  border: 1px solid rgba(239,68,68,0.25);
+  background: var(--error);
+  color: #ffffff;
+  border: 1px solid #000000;
 }
-.btn-danger:hover:not(:disabled) { background: rgba(239,68,68,0.18); }
+.btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+}
 
-.btn-lg { height: 48px; padding: 0 28px; font-size: 15px; border-radius: var(--radius-md); }
-.btn-sm { height: 32px; padding: 0 12px; font-size: 12px; border-radius: var(--radius-sm); }
+.btn-lg { height: 48px; padding: 0 28px; font-size: 15px; border-radius: 10em; }
+.btn-sm { height: 32px; padding: 0 12px; font-size: 12px; border-radius: 10em; }
 .btn-full { width: 100%; }
+
+/* ── Premium Slide-Hover Get Started Button ── */
+.get-started-btn-wrapper {
+  position: relative;
+  display: inline-block;
+  z-index: 10;
+}
+
+.get-started-btn-wrapper::before {
+  content: '';
+  position: absolute;
+  inset: 0px;
+  background: linear-gradient(130deg, #2563eb 0%, #818cf8 50%, #a78bfa 100%);
+  border-radius: 16px;
+  z-index: -1;
+  opacity: 0.35;
+  filter: blur(12px);
+  transition: opacity 0.4s ease, filter 0.4s ease, transform 0.4s ease;
+}
+
+.get-started-btn-wrapper:hover::before {
+  opacity: 0.9;
+  filter: blur(18px);
+  transform: scale(1.04);
+}
+
+.get-started-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 192px;
+  height: 56px;
+  background: #ffffff;
+  color: #000000;
+  border-radius: 16px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  border: 1px solid #000000;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+  cursor: pointer;
+  overflow: hidden;
+  text-decoration: none;
+  z-index: 1;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.get-started-btn-icon {
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(130deg, #2563eb 0%, #818cf8 50%, #a78bfa 100%);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: 2;
+}
+
+.get-started-btn-text {
+  position: relative;
+  z-index: 3;
+  transform: translateX(10px);
+  transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Hover state: Totally cover the button */
+.get-started-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.get-started-btn:hover .get-started-btn-icon {
+  left: 0px;
+  top: 0px;
+  width: 100%;
+  height: 100%;
+  border-radius: 16px;
+  background: linear-gradient(130deg, #1d4ed8 0%, #6366f1 50%, #8b5cf6 100%);
+}
+
+.get-started-btn:hover .get-started-btn-text {
+  color: #ffffff;
+  transform: translateX(-24px); /* Slide text to left of center */
+}
+
+.get-started-btn:hover svg {
+  transform: translateX(54px); /* Slide arrow to right of center */
+}
+
+.get-started-btn svg {
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease;
+}
+
+.get-started-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Click state exit transitions: Slide arrow smoothly out of bounds */
+.get-started-btn.clicked {
+  pointer-events: none; /* prevent double clicks */
+}
+
+.get-started-btn.clicked .get-started-btn-icon {
+  left: 0px;
+  top: 0px;
+  width: 100%;
+  height: 100%;
+  border-radius: 16px;
+  background: linear-gradient(130deg, #1d4ed8 0%, #6366f1 50%, #8b5cf6 100%);
+}
+
+.get-started-btn.clicked .get-started-btn-text {
+  transform: translateX(-120px);
+  opacity: 0;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+}
+
+.get-started-btn.clicked .get-started-btn-icon svg {
+  transform: translateX(160px);
+  opacity: 0;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+}
+
 
 /* ── Cards ── */
 .card {
@@ -594,14 +747,151 @@ h1, h2, h3, h4, h5, h6 {
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
 
+/* ── Responsive Grid Utilities ── */
+.grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.grid-3col {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+
+.grid-auto {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.home-main-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+/* ── Mobile nav ── */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--t), border-color var(--t);
+}
+.hamburger:hover { background: var(--surface-hover); border-color: rgba(255,255,255,0.15); }
+.hamburger span {
+  display: block;
+  width: 16px;
+  height: 1.5px;
+  background: var(--text-muted);
+  border-radius: 2px;
+  transition: transform var(--t), opacity var(--t), width var(--t);
+}
+.hamburger.open span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+.hamburger.open span:nth-child(2) { opacity: 0; width: 0; }
+.hamburger.open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+
+.mobile-nav-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 900;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.2s ease;
+}
+
+.mobile-nav-drawer {
+  position: fixed;
+  top: 80px;
+  left: 16px;
+  right: 16px;
+  z-index: 950;
+  background: rgba(13, 13, 25, 0.97);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-xl);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  animation: slideUp 0.25s cubic-bezier(0.22,1,0.36,1) both;
+}
+
+.mobile-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: background var(--t), color var(--t);
+}
+.mobile-nav-link:hover,
+.mobile-nav-link.active { background: var(--surface-hover); color: var(--text); }
+.mobile-nav-divider { height: 1px; background: var(--border); margin: 6px 0; }
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
-  .container { padding: 0 20px; }
+  .container { padding: 0 16px; }
   .header-nav { display: none; }
-  .header-inner { padding: 0 20px; }
+  .header-inner { padding: 0 16px; }
+  .hamburger { display: flex; }
+  .mobile-nav-overlay { display: block; }
+
   .footer-inner { flex-direction: column; text-align: center; }
   .footer-links { justify-content: center; }
+
+  /* Page layout */
+  .page-content { padding-top: 90px; padding-bottom: 64px; }
+
+  /* CTA section */
+  .cta-inner { padding: 40px 24px; gap: 20px; }
+
+  /* Modal */
+  .modal-box { padding: 24px 16px; }
+  .modal-overlay { padding: 12px; }
+
+  /* Feature card grid */
+  .hover-boxes-grid { grid-template-columns: 1fr; gap: 16px; }
+
+  /* Responsive grid utilities */
+  .grid-2col { grid-template-columns: 1fr; }
+  .grid-3col { grid-template-columns: 1fr 1fr; }
+  .home-main-grid { grid-template-columns: 1fr; gap: 24px; }
 }
+
+@media (max-width: 480px) {
+  .container { padding: 0 12px; }
+  .grid-3col { grid-template-columns: 1fr; }
+  .header-inner { padding: 0 12px; }
+  .page-content { padding-top: 84px; }
+
+  /* Reduce header pill width on very small screens */
+  .app-header { width: calc(100% - 16px); top: 8px; }
+
+  /* Stack action buttons */
+  .btn-stack-mobile { flex-direction: column; }
+}
+
 
 /* ── 3D HOVER BOXES GRID & CUBES ── */
 .hover-boxes-grid {

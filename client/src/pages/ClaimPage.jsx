@@ -46,7 +46,7 @@ export default function ClaimPage() {
         </div>
 
         {/* 60/40 grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', alignItems: 'start' }}>
+        <div className="grid-2col" style={{ alignItems: 'start' }}>
 
           {/* LEFT */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

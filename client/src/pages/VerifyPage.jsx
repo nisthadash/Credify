@@ -48,7 +48,7 @@ export default function VerifyPage() {
 
   return (
     <div className="page-content">
-      <div style={{ maxWidth: '700px', margin: '0 auto', padding: '0 32px' }}>
+      <div style={{ maxWidth: '700px', margin: '0 auto', padding: '0 clamp(16px, 4vw, 32px)' }}>
 
         {/* Header */}
         <div className="animate-fade-up" style={{ textAlign: 'center', marginBottom: '48px' }}>
@@ -167,7 +167,7 @@ export default function VerifyPage() {
             </div>
 
             {/* Result grid */}
-            <div style={{ padding: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div className="grid-2col" style={{ padding: '24px', gap: '20px' }}>
               <MetaItem label="Token ID"    value={`#${result.tokenId}`}   mono />
               <MetaItem label="Issued"      value={result.eventDate ? new Date(result.eventDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'} />
               <MetaItem label="Tier"        value={<span style={{ color: tierColor, fontWeight: 700, textTransform: 'uppercase', fontSize: '13px', letterSpacing: '0.04em' }}>{result.tier}</span>} />

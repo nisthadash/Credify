@@ -180,7 +180,7 @@ export default function Home() {
       </section>
 
       {/* Main Grid Layout */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '32px', alignItems: 'start' }}>
+      <div className="home-main-grid">
         
         {/* Left Side: Interactive Progression Timeline */}
         <div className="glass-panel" style={{ padding: '32px', position: 'relative' }}>
