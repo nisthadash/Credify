@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Lock } from 'lucide-react';
+import logo from '../assets/logo.png';
 
 const DEMO_EMAIL    = 'organizer@credify.app';
 const DEMO_PASSWORD = 'credify2026';
@@ -32,13 +33,20 @@ export default function OrganizerLoginPage() {
 
         {/* Icon + title */}
         <div style={{ textAlign: 'center', marginBottom: '36px' }}>
-          <div style={{
-            width: 56, height: 56, borderRadius: 14, background: 'var(--primary)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px',
-          }}>
-            <ShieldCheck size={26} color="#fff" strokeWidth={2.5} />
-          </div>
+          <img 
+            src={logo} 
+            alt="Credify Logo" 
+            style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '50%',
+              objectFit: 'cover',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              boxShadow: '0 0 16px rgba(37, 99, 235, 0.25)',
+              margin: '0 auto 16px',
+              display: 'block',
+            }}
+          />
           <h1 style={{ fontSize: '24px', marginBottom: '6px' }}>Organizer Login</h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Access the Credify admin dashboard</p>
         </div>

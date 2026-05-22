@@ -4,6 +4,7 @@ import { useAccount } from 'wagmi';
 import { ShieldCheck, Home, Award, Wallet, Search, Shield } from 'lucide-react';
 import ConnectWalletButton from '../wallet/ConnectWalletButton.jsx';
 import NetworkBadge from '../wallet/NetworkBadge.jsx';
+import logo from '../../assets/logo.png';
 
 const NAV = [
   { label: 'Home',           to: '/home',              icon: Home },
@@ -65,9 +66,18 @@ export default function Header() {
         <div className="header-inner">
           {/* Logo */}
           <Link to="/" className="header-logo">
-            <div className="logo-icon">
-              <ShieldCheck size={18} color="#fff" strokeWidth={2.5} />
-            </div>
+            <img 
+              src={logo} 
+              alt="Credify Logo" 
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                objectFit: 'cover',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                boxShadow: '0 0 10px rgba(37, 99, 235, 0.25)',
+              }}
+            />
             <span className="logo-text">Credify</span>
           </Link>
 
