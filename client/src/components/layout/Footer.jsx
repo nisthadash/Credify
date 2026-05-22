@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ShieldCheck, ExternalLink } from 'lucide-react';
+import logo from '../../assets/logo.png';
 
 export default function Footer() {
   return (
@@ -8,12 +9,17 @@ export default function Footer() {
       <div className="footer-inner">
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{
-            width: 28, height: 28, background: 'var(--primary)', borderRadius: 6,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <ShieldCheck size={15} color="#fff" strokeWidth={2.5} />
-          </div>
+          <img 
+            src={logo} 
+            alt="Credify Logo" 
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              objectFit: 'cover',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+            }}
+          />
           <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '15px', color: 'var(--text-muted)' }}>
             Credify
           </span>

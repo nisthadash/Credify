@@ -19,7 +19,7 @@ export default function SuccessPage() {
 
   return (
     <div className="page-content">
-      <div style={{ maxWidth: '600px', margin: '0 auto', padding: '0 32px' }}>
+      <div style={{ maxWidth: '600px', margin: '0 auto', padding: '0 clamp(16px, 4vw, 32px)' }}>
 
         {/* Check mark */}
         <div className={show ? 'animate-pop-in' : ''} style={{
@@ -42,7 +42,7 @@ export default function SuccessPage() {
         </div>
 
         {/* Badge preview */}
-        <div className={`card ${show ? 'animate-fade-up delay-100' : ''}`} style={{ padding: '32px', marginBottom: '20px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+        <div className={`card ${show ? 'animate-fade-up delay-100' : ''}`} style={{ padding: 'clamp(20px, 5vw, 32px)', marginBottom: '20px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
           {/* Subtle glow */}
           <div style={{
             position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
@@ -77,7 +77,7 @@ export default function SuccessPage() {
           <p style={{ fontSize: '11px', color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, fontFamily: 'var(--font-display)', marginBottom: '18px' }}>
             Mint Details
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px', marginBottom: '18px' }}>
+          <div className="grid-2col" style={{ gap: '18px', marginBottom: '18px' }}>
             <DItem label="NFT Token ID"      value={`#${tokenId}`}  mono />
             <DItem label="Credential Tier"   value="Event Pass (Tier 0)" />
             <DItem label="Network"           value="Base Sepolia" />
@@ -104,8 +104,8 @@ export default function SuccessPage() {
         </div>
 
         {/* Actions */}
-        <div className={`${show ? 'animate-fade-up delay-300' : ''}`}
-          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '20px' }}>
+        <div className={`grid-3col ${show ? 'animate-fade-up delay-300' : ''}`}
+          style={{ gap: '10px', marginBottom: '20px' }}>
           <a href={`https://sepolia.basescan.org/tx/${txHash}`} target="_blank" rel="noreferrer"
             className="btn btn-ghost" style={{ textDecoration: 'none' }}>
             <ExternalLink size={14} /> Explorer
