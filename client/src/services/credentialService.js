@@ -43,13 +43,26 @@ export async function initializeClaim(walletAddress, eventId) {
       method: 'POST',
       body: JSON.stringify({ walletAddress, eventId }),
     });
-    if (data.success) return data.data;
-    throw new Error(data.message || 'Failed to initialize claim');
+    
+    if (data && data.success) {
+      return data.data;
+    }
+    
+    if (data && data.success === false) {
+      const apiErr = new Error(data.message || 'Failed to initialize claim');
+      apiErr.isApiError = true;
+      throw apiErr;
+    }
+    
+    throw new Error('Unknown API response');
   } catch (err) {
-    console.warn('[credentialService] initializeClaim failed — falling back to local metadata URI.');
+    if (err.isApiError) {
+      throw err;
+    }
+    
+    console.warn('[credentialService] initializeClaim connection failed — falling back to local metadata URI.');
     const protocol = window.location.protocol;
     const host = window.location.host;
-    // Fallback to standard local/development eventId if not present
     const cleanEventId = eventId || '664cc56a7d7324a0d85485ab';
     return {
       walletAddress,
@@ -60,3 +73,4 @@ export async function initializeClaim(walletAddress, eventId) {
     };
   }
 }
+

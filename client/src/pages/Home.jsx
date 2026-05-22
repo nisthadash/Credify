@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAccount, useChainId } from 'wagmi';
-import { CheckCircle2, ShieldAlert, Award, Star, Flame, Compass, ChevronRight, Share2, ExternalLink, Lock, Unlock, Sparkles, RefreshCw, Zap, Info, Trophy, Sliders } from 'lucide-react';
+import { CheckCircle2, ShieldAlert, Award, Star, Flame, Compass, ChevronRight, Share2, ExternalLink, Lock, Unlock, Sparkles, RefreshCw, Zap, Info, Trophy, Sliders, Check } from 'lucide-react';
 import { useEligibility } from '../hooks/useEligibility.js';
 import { useUGFClaim } from '../hooks/useUGFClaim.js';
 import { saveClaim, getCredentialsByWallet } from '../services/credentialService.js';
+import { createPublicClient, http } from 'viem';
+import { baseSepolia } from 'viem/chains';
+import { Contract } from 'ethers';
+import { useEthersSigner } from '../utils/ethers.js';
+import { CONTRACT_ADDRESS, ABI } from '../config/contract.js';
 
 const TIERS = [
   { level: 0, name: 'Event Pass', description: 'Your entry pass for registering and checking in.', icon: Compass, color: '#00f2fe', subtitle: 'Tier 0 - Registration' },
@@ -26,6 +31,87 @@ export default function Home() {
 
   // Load actual claimed credentials
   const [credentials, setCredentials] = useState([]);
+
+  // On-chain owner and eligibility checks
+  const signer = useEthersSigner();
+  const [contractOwner, setContractOwner] = useState('');
+  const [onchainEligible, setOnchainEligible] = useState(false);
+  const [onchainClaimed, setOnchainClaimed] = useState(false);
+  const [checkingOnchain, setCheckingOnchain] = useState(false);
+  const [whitelisting, setWhitelisting] = useState(false);
+
+  const checkOnchainStatus = async () => {
+    if (!address) return;
+    setCheckingOnchain(true);
+    try {
+      const publicClient = createPublicClient({
+        chain: baseSepolia,
+        transport: http('https://sepolia.base.org')
+      });
+      
+      const ownerAddress = await publicClient.readContract({
+        address: CONTRACT_ADDRESS,
+        abi: ABI,
+        functionName: 'owner'
+      });
+      setContractOwner(ownerAddress);
+
+      const isUserEligible = await publicClient.readContract({
+        address: CONTRACT_ADDRESS,
+        abi: ABI,
+        functionName: 'isEligible',
+        args: [address]
+      });
+      setOnchainEligible(isUserEligible);
+
+      const credentialInfo = await publicClient.readContract({
+        address: CONTRACT_ADDRESS,
+        abi: ABI,
+        functionName: 'getCredential',
+        args: [address]
+      });
+      setOnchainClaimed(credentialInfo[2]); // Third index is claimed (bool)
+      console.log('[Onchain Check] Owner:', ownerAddress, 'User:', address, 'Eligible:', isUserEligible, 'Claimed:', credentialInfo[2]);
+    } catch (err) {
+      console.error('Error checking onchain status:', err);
+    } finally {
+      setCheckingOnchain(false);
+    }
+  };
+
+  const handleWhitelistOnchain = async () => {
+    if (!signer || !address) return;
+    setWhitelisting(true);
+    try {
+      const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
+      console.log('[Onchain Whitelist] Sending addEligible transaction for:', address);
+      const tx = await contract.addEligible(address);
+      console.log('[Onchain Whitelist] Transaction sent:', tx.hash);
+      
+      // Wait for 1 confirmation
+      const receipt = await tx.wait();
+      console.log('[Onchain Whitelist] Transaction confirmed:', receipt);
+      
+      // Refresh status
+      await checkOnchainStatus();
+      alert('Wallet whitelisted on-chain successfully!');
+    } catch (err) {
+      console.error('Error whitelisting onchain:', err);
+      alert('Failed to whitelist on-chain: ' + (err.reason || err.message || err));
+    } finally {
+      setWhitelisting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isConnected && address) {
+      checkOnchainStatus();
+    } else {
+      setContractOwner('');
+      setOnchainEligible(false);
+      setOnchainClaimed(false);
+    }
+  }, [address, isConnected]);
   const [loadingCredentials, setLoadingCredentials] = useState(false);
   const [simulateApproval, setSimulateApproval] = useState(false);
 
@@ -85,8 +171,11 @@ export default function Home() {
 
   // Computed state calculations
   const claimedLevels = new Set(credentials.map(c => c.tierLevel));
-  const highestClaimedLevel = credentials.length > 0 
-    ? Math.max(...credentials.map(c => c.tierLevel)) 
+  if (onchainClaimed) {
+    claimedLevels.add(0);
+  }
+  const highestClaimedLevel = claimedLevels.size > 0 
+    ? Math.max(...Array.from(claimedLevels)) 
     : -1;
 
   // Determine stage status
@@ -716,6 +805,48 @@ export default function Home() {
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Onchain Whitelist Control for Smart Contract Owner */}
+              {isConnected && contractOwner && address && address.toLowerCase() === contractOwner.toLowerCase() && (
+                <div style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  gap: '10px', 
+                  padding: '12px 14px', 
+                  background: onchainEligible ? 'rgba(34, 197, 94, 0.05)' : 'rgba(239, 68, 68, 0.05)', 
+                  borderRadius: 'var(--radius-md)', 
+                  border: onchainEligible ? '1px solid rgba(34, 197, 94, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', color: '#fff' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: onchainEligible ? 'var(--success)' : 'var(--error)' }}></span>
+                        Onchain Whitelist Status
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        {onchainEligible ? 'Whitelisted (Ready for UGF claim)' : 'Not Whitelisted (UGF will fail)'}
+                      </div>
+                    </div>
+                    {!onchainEligible && (
+                      <button 
+                        onClick={handleWhitelistOnchain}
+                        disabled={whitelisting}
+                        className="btn btn-sm btn-primary"
+                        style={{ 
+                          fontSize: '11px', 
+                          padding: '6px 12px', 
+                          height: 'auto',
+                          background: 'var(--primary)',
+                          color: '#000',
+                          fontWeight: 700
+                        }}
+                      >
+                        {whitelisting ? 'Whitelisting...' : 'Whitelist Me'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {isConnected && highestClaimedLevel < 4 && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(255,255,255,0.04)' }}>
                   <div>

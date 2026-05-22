@@ -7,6 +7,11 @@ import { useUGFClaim } from '../hooks/useUGFClaim.js';
 import UGFProgressModal from '../components/credential/UGFProgressModal.jsx';
 import Loader from '../components/common/Loader.jsx';
 import ConnectWalletButton from '../components/wallet/ConnectWalletButton.jsx';
+import { createPublicClient, http } from 'viem';
+import { baseSepolia } from 'viem/chains';
+import { Contract } from 'ethers';
+import { useEthersSigner } from '../utils/ethers.js';
+import { CONTRACT_ADDRESS, ABI } from '../config/contract.js';
 
 const EVENT = {
   name: 'Credify Base Sepolia Workshop',
@@ -21,6 +26,87 @@ export default function ClaimPage() {
   const { checked, isEligible, eventTitle, eventId, loading: eligLoading } = useEligibility(address, isConnected);
   const { ugfStep, txDetails, triggerClaim, isRunning } = useUGFClaim();
   const [modalOpen, setModalOpen] = useState(false);
+
+  // On-chain owner and eligibility checks
+  const signer = useEthersSigner();
+  const [contractOwner, setContractOwner] = useState('');
+  const [onchainEligible, setOnchainEligible] = useState(false);
+  const [onchainClaimed, setOnchainClaimed] = useState(false);
+  const [checkingOnchain, setCheckingOnchain] = useState(false);
+  const [whitelisting, setWhitelisting] = useState(false);
+
+  const checkOnchainStatus = async () => {
+    if (!address) return;
+    setCheckingOnchain(true);
+    try {
+      const publicClient = createPublicClient({
+        chain: baseSepolia,
+        transport: http('https://sepolia.base.org')
+      });
+      
+      const ownerAddress = await publicClient.readContract({
+        address: CONTRACT_ADDRESS,
+        abi: ABI,
+        functionName: 'owner'
+      });
+      setContractOwner(ownerAddress);
+
+      const isUserEligible = await publicClient.readContract({
+        address: CONTRACT_ADDRESS,
+        abi: ABI,
+        functionName: 'isEligible',
+        args: [address]
+      });
+      setOnchainEligible(isUserEligible);
+
+      const credentialInfo = await publicClient.readContract({
+        address: CONTRACT_ADDRESS,
+        abi: ABI,
+        functionName: 'getCredential',
+        args: [address]
+      });
+      setOnchainClaimed(credentialInfo[2]); // Third index is claimed (bool)
+      console.log('[ClaimPage Onchain Check] Owner:', ownerAddress, 'User:', address, 'Eligible:', isUserEligible, 'Claimed:', credentialInfo[2]);
+    } catch (err) {
+      console.error('Error checking onchain status:', err);
+    } finally {
+      setCheckingOnchain(false);
+    }
+  };
+
+  const handleWhitelistOnchain = async () => {
+    if (!signer || !address) return;
+    setWhitelisting(true);
+    try {
+      const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
+      console.log('[ClaimPage Onchain Whitelist] Sending addEligible transaction for:', address);
+      const tx = await contract.addEligible(address);
+      console.log('[ClaimPage Onchain Whitelist] Transaction sent:', tx.hash);
+      
+      // Wait for 1 confirmation
+      const receipt = await tx.wait();
+      console.log('[ClaimPage Onchain Whitelist] Transaction confirmed:', receipt);
+      
+      // Refresh status
+      await checkOnchainStatus();
+      alert('Wallet whitelisted on-chain successfully!');
+    } catch (err) {
+      console.error('Error whitelisting onchain:', err);
+      alert('Failed to whitelist on-chain: ' + (err.reason || err.message || err));
+    } finally {
+      setWhitelisting(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (isConnected && address) {
+      checkOnchainStatus();
+    } else {
+      setContractOwner('');
+      setOnchainEligible(false);
+      setOnchainClaimed(false);
+    }
+  }, [address, isConnected]);
 
   const handleClaim = async () => {
     setModalOpen(true);
@@ -89,6 +175,21 @@ export default function ClaimPage() {
                   <Loader size="md" />
                   <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Checking eligibility…</span>
                 </div>
+              ) : onchainClaimed ? (
+                <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                  <p style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}><ShieldCheck size={28} style={{ color: 'var(--success)' }} /></p>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px', color: '#fff' }}>Credential Already Claimed</h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '13px', lineHeight: 1.6, marginBottom: '20px' }}>
+                    You have already claimed this credential pass on Base Sepolia.
+                  </p>
+                  <button 
+                    onClick={() => navigate('/my-credentials')}
+                    className="btn btn-primary btn-full"
+                    style={{ height: '48px', fontSize: '15px' }}
+                  >
+                    View My Credentials
+                  </button>
+                </div>
               ) : checked && !isEligible ? (
                 <div style={{ textAlign: 'center', padding: '16px 0' }}>
                   <p style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}><ShieldAlert size={28} style={{ color: 'var(--error)' }} /></p>
@@ -98,6 +199,42 @@ export default function ClaimPage() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {/* Onchain Whitelist Warning for Smart Contract Owner */}
+                  {contractOwner && address && address.toLowerCase() === contractOwner.toLowerCase() && !onchainEligible && (
+                    <div style={{ 
+                      padding: '12px 14px', 
+                      background: 'rgba(239, 68, 68, 0.07)', 
+                      borderRadius: 'var(--radius-md)', 
+                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px'
+                    }}>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', color: '#ff8a8a' }}>
+                        <ShieldAlert size={14} /> Owner Wallet Not Whitelisted Onchain
+                      </div>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', lineHeight: 1.4 }}>
+                        Your wallet is the smart contract owner but is not whitelisted on-chain yet. The UGF transaction dry-run simulation will revert.
+                      </p>
+                      <button 
+                        onClick={handleWhitelistOnchain}
+                        disabled={whitelisting}
+                        className="btn btn-sm btn-primary"
+                        style={{ 
+                          fontSize: '11px', 
+                          padding: '6px 12px', 
+                          height: 'auto',
+                          background: 'var(--primary)',
+                          color: '#000',
+                          fontWeight: 700,
+                          alignSelf: 'flex-start'
+                        }}
+                      >
+                        {whitelisting ? 'Whitelisting...' : 'Whitelist On-Chain Now'}
+                      </button>
+                    </div>
+                  )}
+
                   <p style={{ fontSize: '14px', color: 'var(--text-muted)', lineHeight: 1.7 }}>
                     You have <strong style={{ color: 'var(--text)' }}>zero ETH</strong> — but that's fine. UGF calculates gas, settles in Mock USD, and mints your credential on Base Sepolia.
                   </p>

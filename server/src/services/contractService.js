@@ -69,6 +69,19 @@ const ABI = [
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   }
 ];
 
@@ -79,6 +92,31 @@ const getPublicClient = () => {
     chain: baseSepolia,
     transport: http(rpcUrl)
   });
+};
+
+/**
+ * Fetch the contract owner address onchain
+ * @returns {Promise<string|null>}
+ */
+const getContractOwner = async () => {
+  const contractAddress = process.env.CONTRACT_ADDRESS;
+
+  if (!contractAddress || contractAddress === '0x0000000000000000000000000000000000000000') {
+    return null;
+  }
+
+  try {
+    const client = getPublicClient();
+    const owner = await client.readContract({
+      address: contractAddress,
+      abi: ABI,
+      functionName: 'owner'
+    });
+    return owner;
+  } catch (error) {
+    console.error('[ContractService] Error calling owner:', error.message);
+    return null;
+  }
 };
 
 /**
@@ -146,6 +184,8 @@ const getOnchainTokenUri = async (tokenId) => {
 };
 
 module.exports = {
+  getContractOwner,
   getOnchainCredential,
   getOnchainTokenUri
 };
+
