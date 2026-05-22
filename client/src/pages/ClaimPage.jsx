@@ -119,6 +119,7 @@ export default function ClaimPage() {
     } catch (err) {
       setModalOpen(false);
       console.error('UGF Claim Flow Failed:', err);
+      alert('Gasless claim failed: ' + (err.message || err));
     }
   };
 

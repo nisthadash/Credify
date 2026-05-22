@@ -119,24 +119,24 @@ export default function Home() {
   const [claimingTier, setClaimingTier] = useState(null); // tier level object being claimed/upgraded
   const [ugfStep, setUgfStep] = useState(''); // 'quoting' | 'settling' | 'executing' | 'confirming' | 'success'
   const [txDetails, setTxDetails] = useState({ tokenId: null, txHash: '', tier: '', metadataUri: '' });
+  const [ugfError, setUgfError] = useState('');
 
   // Standard eligibility check for Event Pass (Tier 0)
   const { checked, isEligible, eventTitle, eventId, loading: loadingEligibility } = useEligibility(address, isConnected);
 
   // Real UGF Claim Flow Hook
-  const { ugfStep: realUgfStep, txDetails: realTxDetails, triggerClaim, reset: resetRealUgf } = useUGFClaim();
+  const { ugfStep: realUgfStep, txDetails: realTxDetails, error: realError, triggerClaim, reset: resetRealUgf } = useUGFClaim();
 
   // Sync real UGF states to local states when claiming Tier 0 (onchain)
   useEffect(() => {
     if (claimingTier && claimingTier.level === 0) {
-      if (realUgfStep) {
-        setUgfStep(realUgfStep);
-      }
-      if (realTxDetails) {
-        setTxDetails(realTxDetails);
+      setUgfStep(realUgfStep);
+      setTxDetails(realTxDetails);
+      if (realError) {
+        setUgfError(realError);
       }
     }
-  }, [realUgfStep, realTxDetails, claimingTier]);
+  }, [realUgfStep, realTxDetails, realError, claimingTier]);
 
   const loadCredentials = async () => {
     if (!address) return;
@@ -163,6 +163,7 @@ export default function Home() {
   useEffect(() => {
     if (!isConnected || !address) {
       setUgfStep('');
+      setUgfError('');
       setClaimingTier(null);
       setSimulateApproval(false);
       resetRealUgf();
@@ -206,8 +207,9 @@ export default function Home() {
   // UGF Gasless Minting Simulator
   const triggerUgfClaim = async () => {
     if (claimingTier === null) return;
+    setUgfError('');
     
-    if (claimingTier.level === 0) {
+    if (claimingTier.level === 0 && onchainEligible) {
       try {
         // Real UGF flow
         await triggerClaim(address, eventId || '664cc56a7d7324a0d85485ab', 0);
@@ -216,9 +218,11 @@ export default function Home() {
         setSimulateApproval(false);
       } catch (err) {
         console.error('Real UGF claim failed:', err);
+        setUgfError(err.message || 'Real UGF claim failed');
+        setUgfStep('');
       }
     } else {
-      // Simulated UGF flow
+      // Simulated UGF flow for level > 0 OR when user is not whitelisted on-chain (so they can still demo)
       // Step 1: Quote (Calculates gas in Mock USD)
       setUgfStep('quoting');
       await new Promise(r => setTimeout(r, 1800));
@@ -234,37 +238,43 @@ export default function Home() {
       // Step 4: Confirm (Block is finalized, mint is confirmed onchain)
       setUgfStep('confirming');
       
-      const mockTxHash = '0x' + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join('');
-      const randomTokenId = Math.floor(Math.random() * 500) + 1;
-      const protocol = window.location.protocol;
-      const host = window.location.host;
-      const mockMetadata = `${protocol}//${host}/api/credentials/metadata/${address}/event-tier-${claimingTier.level}`;
+      try {
+        const mockTxHash = '0x' + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join('');
+        const randomTokenId = Math.floor(Math.random() * 500) + 1;
+        const protocol = window.location.protocol;
+        const host = window.location.host;
+        const mockMetadata = `${protocol}//${host}/api/credentials/metadata/${address}/event-tier-${claimingTier.level}`;
 
-      // Save claim through standardized credential service
-      await saveClaim({
-        tokenId: randomTokenId,
-        walletAddress: address,
-        eventId: '664cc56a7d7324a0d85485ab', // Standard identifier
-        txHash: mockTxHash,
-        metadataUri: mockMetadata,
-        tierLevel: claimingTier.level
-      });
+        // Save claim through standardized credential service
+        await saveClaim({
+          tokenId: randomTokenId,
+          walletAddress: address,
+          eventId: '664cc56a7d7324a0d85485ab', // Standard identifier
+          txHash: mockTxHash,
+          metadataUri: mockMetadata,
+          tierLevel: claimingTier.level
+        });
 
-      setTxDetails({
-        tokenId: randomTokenId,
-        txHash: mockTxHash,
-        tier: claimingTier.name,
-        metadataUri: mockMetadata
-      });
-      
-      await new Promise(r => setTimeout(r, 1200));
-      setUgfStep('success');
+        setTxDetails({
+          tokenId: randomTokenId,
+          txHash: mockTxHash,
+          tier: claimingTier.name,
+          metadataUri: mockMetadata
+        });
+        
+        await new Promise(r => setTimeout(r, 1200));
+        setUgfStep('success');
 
-      // Reload claimed credentials immediately to update UI status
-      await loadCredentials();
-      
-      // Turn off simulator approval so they have to toggle it again for the next level
-      setSimulateApproval(false);
+        // Reload claimed credentials immediately to update UI status
+        await loadCredentials();
+        
+        // Turn off simulator approval so they have to toggle it again for the next level
+        setSimulateApproval(false);
+      } catch (err) {
+        console.error('Simulated UGF claim failed:', err);
+        setUgfError(err.message || 'Simulated UGF claim failed');
+        setUgfStep('');
+      }
     }
   };
 
@@ -274,6 +284,7 @@ export default function Home() {
     setSimulateApproval(false);
     setClaimingTier(null);
     setUgfStep('');
+    setUgfError('');
     resetRealUgf();
     alert('Demo reset successfully! All mock credentials have been cleared.');
   };
@@ -667,8 +678,34 @@ export default function Home() {
                 {ugfStep === '' && (
                   <div>
                     <div className="info-note" style={{ marginBottom: '16px' }}>
-                      <strong>Gasless Abstraction:</strong> The Universal Gas Framework pays the required network gas fee on Base Sepolia. The interaction costs 0.15 Mock USD settled directly from your event credit account.
+                      {claimingTier.level === 0 && !onchainEligible ? (
+                        <>
+                          <strong>Simulation Mode:</strong> Since your wallet is not whitelisted on-chain, we are running in simulated gasless claim mode. Whitelist your wallet using Owner helper tools to run the real UGF flow.
+                        </>
+                      ) : (
+                        <>
+                          <strong>Gasless Abstraction:</strong> The Universal Gas Framework pays the required network gas fee on Base Sepolia. The interaction costs 0.15 Mock USD settled directly from your event credit account.
+                        </>
+                      )}
                     </div>
+                    {ugfError && (
+                      <div className="error-note" style={{ 
+                        background: 'rgba(239, 68, 68, 0.08)',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        color: '#ff8a8a',
+                        padding: '12px',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: '0.85rem',
+                        lineHeight: 1.4,
+                        marginBottom: '16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px'
+                      }}>
+                        <span style={{ fontWeight: 700 }}>Transaction Failed:</span>
+                        <span>{ugfError}</span>
+                      </div>
+                    )}
                     <button 
                       onClick={triggerUgfClaim} 
                       className="btn btn-full btn-primary animate-pop-in"
@@ -887,6 +924,7 @@ export default function Home() {
   function startClaimFlow(tier) {
     setClaimingTier(tier);
     setUgfStep('');
+    setUgfError('');
     
     // Smooth scroll down to UGF console if mobile layout
     if (window.innerWidth <= 768) {
