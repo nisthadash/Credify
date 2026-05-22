@@ -12,6 +12,9 @@ import { WagmiProvider, createConfig, http } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
 import { injected } from 'wagmi/connectors';
 
+// Universal Gas Framework (UGF)
+import { UGFProvider } from '@tychilabs/react-ugf';
+
 const queryClient = new QueryClient();
 
 const wagmiConfig = createConfig({
@@ -27,7 +30,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
-          <App />
+          <UGFProvider mode="testnet">
+            <App />
+          </UGFProvider>
         </QueryClientProvider>
       </WagmiProvider>
     </BrowserRouter>

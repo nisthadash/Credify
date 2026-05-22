@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAccount, useChainId } from 'wagmi';
 import { CheckCircle2, ShieldAlert, Award, Star, Flame, Compass, ChevronRight, Share2, ExternalLink, Lock, Unlock, Sparkles, RefreshCw, Zap, Info, Trophy, Sliders } from 'lucide-react';
 import { useEligibility } from '../hooks/useEligibility.js';
+import { useUGFClaim } from '../hooks/useUGFClaim.js';
 import { saveClaim, getCredentialsByWallet } from '../services/credentialService.js';
 
 const TIERS = [
@@ -34,7 +35,22 @@ export default function Home() {
   const [txDetails, setTxDetails] = useState({ tokenId: null, txHash: '', tier: '', metadataUri: '' });
 
   // Standard eligibility check for Event Pass (Tier 0)
-  const { checked, isEligible, eventTitle, loading: loadingEligibility } = useEligibility(address, isConnected);
+  const { checked, isEligible, eventTitle, eventId, loading: loadingEligibility } = useEligibility(address, isConnected);
+
+  // Real UGF Claim Flow Hook
+  const { ugfStep: realUgfStep, txDetails: realTxDetails, triggerClaim, reset: resetRealUgf } = useUGFClaim();
+
+  // Sync real UGF states to local states when claiming Tier 0 (onchain)
+  useEffect(() => {
+    if (claimingTier && claimingTier.level === 0) {
+      if (realUgfStep) {
+        setUgfStep(realUgfStep);
+      }
+      if (realTxDetails) {
+        setTxDetails(realTxDetails);
+      }
+    }
+  }, [realUgfStep, realTxDetails, claimingTier]);
 
   const loadCredentials = async () => {
     if (!address) return;
@@ -63,6 +79,7 @@ export default function Home() {
       setUgfStep('');
       setClaimingTier(null);
       setSimulateApproval(false);
+      resetRealUgf();
     }
   }, [isConnected, address]);
 
@@ -101,52 +118,65 @@ export default function Home() {
   const triggerUgfClaim = async () => {
     if (claimingTier === null) return;
     
-    // Step 1: Quote (Calculates gas in Mock USD)
-    setUgfStep('quoting');
-    await new Promise(r => setTimeout(r, 1800));
+    if (claimingTier.level === 0) {
+      try {
+        // Real UGF flow
+        await triggerClaim(address, eventId || '664cc56a7d7324a0d85485ab', 0);
+        // Reload credentials
+        await loadCredentials();
+        setSimulateApproval(false);
+      } catch (err) {
+        console.error('Real UGF claim failed:', err);
+      }
+    } else {
+      // Simulated UGF flow
+      // Step 1: Quote (Calculates gas in Mock USD)
+      setUgfStep('quoting');
+      await new Promise(r => setTimeout(r, 1800));
 
-    // Step 2: Settle (Approve payment in Mock USD)
-    setUgfStep('settling');
-    await new Promise(r => setTimeout(r, 1600));
+      // Step 2: Settle (Approve payment in Mock USD)
+      setUgfStep('settling');
+      await new Promise(r => setTimeout(r, 1600));
 
-    // Step 3: Execute (UGF pays ETH gas and executes contract)
-    setUgfStep('executing');
-    await new Promise(r => setTimeout(r, 2000));
+      // Step 3: Execute (UGF pays ETH gas and executes contract)
+      setUgfStep('executing');
+      await new Promise(r => setTimeout(r, 2000));
 
-    // Step 4: Confirm (Block is finalized, mint is confirmed onchain)
-    setUgfStep('confirming');
-    
-    const mockTxHash = '0x' + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join('');
-    const randomTokenId = Math.floor(Math.random() * 500) + 1;
-    const protocol = window.location.protocol;
-    const host = window.location.host;
-    const mockMetadata = `${protocol}//${host}/api/credentials/metadata/${address}/event-tier-${claimingTier.level}`;
+      // Step 4: Confirm (Block is finalized, mint is confirmed onchain)
+      setUgfStep('confirming');
+      
+      const mockTxHash = '0x' + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join('');
+      const randomTokenId = Math.floor(Math.random() * 500) + 1;
+      const protocol = window.location.protocol;
+      const host = window.location.host;
+      const mockMetadata = `${protocol}//${host}/api/credentials/metadata/${address}/event-tier-${claimingTier.level}`;
 
-    // Save claim through standardized credential service
-    await saveClaim({
-      tokenId: randomTokenId,
-      walletAddress: address,
-      eventId: '664cc56a7d7324a0d85485ab', // Standard identifier
-      txHash: mockTxHash,
-      metadataUri: mockMetadata,
-      tierLevel: claimingTier.level
-    });
+      // Save claim through standardized credential service
+      await saveClaim({
+        tokenId: randomTokenId,
+        walletAddress: address,
+        eventId: '664cc56a7d7324a0d85485ab', // Standard identifier
+        txHash: mockTxHash,
+        metadataUri: mockMetadata,
+        tierLevel: claimingTier.level
+      });
 
-    setTxDetails({
-      tokenId: randomTokenId,
-      txHash: mockTxHash,
-      tier: claimingTier.name,
-      metadataUri: mockMetadata
-    });
-    
-    await new Promise(r => setTimeout(r, 1200));
-    setUgfStep('success');
+      setTxDetails({
+        tokenId: randomTokenId,
+        txHash: mockTxHash,
+        tier: claimingTier.name,
+        metadataUri: mockMetadata
+      });
+      
+      await new Promise(r => setTimeout(r, 1200));
+      setUgfStep('success');
 
-    // Reload claimed credentials immediately to update UI status
-    await loadCredentials();
-    
-    // Turn off simulator approval so they have to toggle it again for the next level
-    setSimulateApproval(false);
+      // Reload claimed credentials immediately to update UI status
+      await loadCredentials();
+      
+      // Turn off simulator approval so they have to toggle it again for the next level
+      setSimulateApproval(false);
+    }
   };
 
   const handleResetDemo = () => {
@@ -155,6 +185,7 @@ export default function Home() {
     setSimulateApproval(false);
     setClaimingTier(null);
     setUgfStep('');
+    resetRealUgf();
     alert('Demo reset successfully! All mock credentials have been cleared.');
   };
 

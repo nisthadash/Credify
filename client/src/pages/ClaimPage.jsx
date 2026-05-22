@@ -18,17 +18,22 @@ const EVENT = {
 export default function ClaimPage() {
   const { address, isConnected } = useAccount();
   const navigate = useNavigate();
-  const { checked, isEligible, eventTitle, loading: eligLoading } = useEligibility(address, isConnected);
+  const { checked, isEligible, eventTitle, eventId, loading: eligLoading } = useEligibility(address, isConnected);
   const { ugfStep, txDetails, triggerClaim, isRunning } = useUGFClaim();
   const [modalOpen, setModalOpen] = useState(false);
 
   const handleClaim = async () => {
     setModalOpen(true);
-    const result = await triggerClaim(address);
-    setTimeout(() => {
+    try {
+      const result = await triggerClaim(address, eventId);
+      setTimeout(() => {
+        setModalOpen(false);
+        navigate(`/success?tokenId=${result.tokenId}&txHash=${result.txHash}&event=${encodeURIComponent(eventTitle || EVENT.name)}`);
+      }, 1200);
+    } catch (err) {
       setModalOpen(false);
-      navigate(`/success?tokenId=${result.tokenId}&txHash=${result.txHash}&event=${encodeURIComponent(eventTitle || EVENT.name)}`);
-    }, 1200);
+      console.error('UGF Claim Flow Failed:', err);
+    }
   };
 
   return (

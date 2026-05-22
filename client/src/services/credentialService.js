@@ -36,3 +36,27 @@ export async function getCredentialsByWallet(address) {
     return all.filter(c => c.walletAddress?.toLowerCase() === address?.toLowerCase());
   }
 }
+
+export async function initializeClaim(walletAddress, eventId) {
+  try {
+    const data = await apiFetch('/credentials/claim-init', {
+      method: 'POST',
+      body: JSON.stringify({ walletAddress, eventId }),
+    });
+    if (data.success) return data.data;
+    throw new Error(data.message || 'Failed to initialize claim');
+  } catch (err) {
+    console.warn('[credentialService] initializeClaim failed — falling back to local metadata URI.');
+    const protocol = window.location.protocol;
+    const host = window.location.host;
+    // Fallback to standard local/development eventId if not present
+    const cleanEventId = eventId || '664cc56a7d7324a0d85485ab';
+    return {
+      walletAddress,
+      eventId: cleanEventId,
+      metadataUri: `${protocol}//${host}/api/credentials/metadata/${walletAddress}/${cleanEventId}`,
+      tier: 'pass',
+      tierLevel: 0
+    };
+  }
+}
