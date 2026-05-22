@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ShieldCheck, X, Download, Coins, Award } from 'lucide-react';
+import logo from '../assets/logo.png';
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -108,6 +109,36 @@ export default function LandingPage() {
           boxShadow: '0 32px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.04)',
         }}
       >
+        {/* Brand Logo & Name */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          marginBottom: '-6px',
+        }}>
+          <img 
+            src={logo} 
+            alt="Credify Logo" 
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '50%',
+              objectFit: 'cover',
+              border: '1.5px solid rgba(255, 255, 255, 0.15)',
+              boxShadow: '0 0 15px rgba(37, 99, 235, 0.35)',
+            }}
+          />
+          <span style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '22px',
+            fontWeight: 800,
+            letterSpacing: '-0.02em',
+            color: '#ffffff',
+          }}>
+            Credify
+          </span>
+        </div>
+
         {/* Eyebrow badge */}
         <span style={{
           background: 'rgba(37,99,235,0.1)',
