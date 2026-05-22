@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, CheckCircle2, ShieldX, ExternalLink, ShieldCheck, Calendar, Hash } from 'lucide-react';
+import { Search, CheckCircle2, ShieldX, ExternalLink, ShieldCheck, Calendar, Hash, Lock, Link2 } from 'lucide-react';
 
 const BACKEND_URL = 'http://localhost:5000/api';
 
@@ -276,7 +276,7 @@ export default function Verify() {
             </div>
 
             <div style={{ display: 'flex', gap: '12px', alignItems: 'start', gridColumn: 'span 2', borderTop: '1px solid var(--border-light)', paddingTop: '16px' }}>
-              <div style={{ width: '20px' }}>🔐</div>
+              <Lock size={18} style={{ color: 'var(--accent-cyan)', marginTop: '2px', flexShrink: 0 }} />
               <div>
                 <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'block' }}>Holder Address</span>
                 <span style={{ fontWeight: 600, color: '#fff', fontFamily: 'monospace', wordBreak: 'break-all' }}>{result.recipient}</span>
@@ -284,7 +284,7 @@ export default function Verify() {
             </div>
 
             <div style={{ display: 'flex', gap: '12px', alignItems: 'start', gridColumn: 'span 2', borderTop: '1px solid var(--border-light)', paddingTop: '16px' }}>
-              <div style={{ width: '20px' }}>🔗</div>
+              <Link2 size={18} style={{ color: 'var(--accent-cyan)', marginTop: '2px', flexShrink: 0 }} />
               <div>
                 <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', display: 'block' }}>Base Sepolia Transaction Hash</span>
                 <a 
