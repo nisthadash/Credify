@@ -9,6 +9,7 @@ import { baseSepolia } from 'viem/chains';
 import { Contract } from 'ethers';
 import { useEthersSigner } from '../utils/ethers.js';
 import { CONTRACT_ADDRESS, ABI } from '../config/contract.js';
+import ConnectWalletButton from '../components/wallet/ConnectWalletButton.jsx';
 
 const TIERS = [
   { level: 0, name: 'Event Pass', description: 'Your entry pass for registering and checking in.', icon: Compass, color: '#00f2fe', subtitle: 'Tier 0 - Registration' },
@@ -540,9 +541,10 @@ export default function Home() {
             {!isConnected ? (
               <div style={{ textAlign: 'center', padding: '16px 0' }}>
                 <ShieldAlert size={40} style={{ color: 'var(--warning)', marginBottom: '12px' }} />
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '14px' }}>
-                  Please connect your wallet in the header navigation to interact with the progression timeline.
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '18px' }}>
+                  Connect your wallet to view connection status and claim your credentials.
                 </p>
+                <ConnectWalletButton style={{ margin: '0 auto', display: 'inline-flex' }} />
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.9rem' }}>
@@ -584,6 +586,7 @@ export default function Home() {
           {/* Centralized UGF Gasless claiming console */}
           <div 
             className="glass-panel" 
+            id="ugf-console"
             style={{ 
               padding: '28px', 
               border: claimingTier ? `1px solid ${claimingTier.color}` : '1px solid rgba(255,255,255,0.08)',
@@ -597,9 +600,12 @@ export default function Home() {
             </h3>
 
             {!isConnected ? (
-              <p style={{ color: 'var(--text-subtle)', fontSize: '0.9rem', textAlign: 'center', padding: '10px 0' }}>
-                Connect your wallet to enable gasless credential minting.
-              </p>
+              <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                <p style={{ color: 'var(--text-subtle)', fontSize: '0.9rem', marginBottom: '18px' }}>
+                  Connect your wallet to enable gasless credential minting.
+                </p>
+                <ConnectWalletButton style={{ margin: '0 auto', display: 'inline-flex' }} />
+              </div>
             ) : !claimingTier ? (
               <div style={{ padding: '10px 0', textAlign: 'center' }}>
                 <div style={{ 
@@ -903,7 +909,12 @@ export default function Home() {
     
     // Smooth scroll down to UGF console if mobile layout
     if (window.innerWidth <= 768) {
-      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      const consoleEl = document.getElementById('ugf-console');
+      if (consoleEl) {
+        consoleEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      }
     }
   }
 }
