@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, ShieldCheck } from 'lucide-react';
+import { ShieldCheck, X, Download, Coins, Award } from 'lucide-react';
+import logo from '../assets/logo.png';
 
 export default function LandingPage() {
   const navigate = useNavigate();
   const [isClicked, setIsClicked] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
   const handleGetStartedClick = (e) => {
     e.preventDefault();
@@ -107,6 +109,36 @@ export default function LandingPage() {
           boxShadow: '0 32px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.04)',
         }}
       >
+        {/* Brand Logo & Name */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          marginBottom: '-6px',
+        }}>
+          <img 
+            src={logo} 
+            alt="Credify Logo" 
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '50%',
+              objectFit: 'cover',
+              border: '1.5px solid rgba(255, 255, 255, 0.15)',
+              boxShadow: '0 0 15px rgba(37, 99, 235, 0.35)',
+            }}
+          />
+          <span style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '22px',
+            fontWeight: 800,
+            letterSpacing: '-0.02em',
+            color: '#ffffff',
+          }}>
+            Credify
+          </span>
+        </div>
+
         {/* Eyebrow badge */}
         <span style={{
           background: 'rgba(37,99,235,0.1)',
@@ -197,6 +229,14 @@ export default function LandingPage() {
               <span className="get-started-btn-text">Get Started</span>
             </Link>
           </div>
+
+          <button
+            onClick={() => setShowGuide(true)}
+            className="new-here-btn"
+            type="button"
+          >
+            I'm new here
+          </button>
         </div>
 
         {/* Fine print */}
@@ -222,6 +262,97 @@ export default function LandingPage() {
           to   { transform: translateY(22px) translateX(-14px); }
         }
       `}</style>
+
+      {/* ── Beginner's Guide Glassmorphism Modal ── */}
+      {showGuide && (
+        <div className="guide-overlay" onClick={() => setShowGuide(false)}>
+          <div className="guide-modal" onClick={(e) => e.stopPropagation()}>
+            {/* Close Button */}
+            <button 
+              className="guide-close-btn"
+              onClick={() => setShowGuide(false)}
+              aria-label="Close guide"
+            >
+              <X size={18} />
+            </button>
+
+            {/* Header */}
+            <div className="guide-header">
+              <h2 className="guide-title">Getting Started</h2>
+              <p className="guide-subtitle">
+                Follow these three simple steps to claim your digital event badges gaslessly.
+              </p>
+            </div>
+
+            {/* Step Cards Grid */}
+            <div className="guide-cards-grid">
+              {/* Step 1 */}
+              <div className="guide-step-card">
+                <div className="guide-card-header">
+                  <div className="guide-card-icon-wrapper">
+                    <Download size={20} />
+                  </div>
+                  <h3 className="guide-card-title">Install MetaMask</h3>
+                  <p className="guide-card-desc">
+                    Set up your MetaMask wallet to securely store and manage your credentials.
+                  </p>
+                </div>
+                <a 
+                  href="https://metamask.io/download" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="guide-card-btn guide-card-btn-metamask"
+                >
+                  Download MetaMask
+                </a>
+              </div>
+
+              {/* Step 2 */}
+              <div className="guide-step-card">
+                <div className="guide-card-header">
+                  <div className="guide-card-icon-wrapper">
+                    <Coins size={20} />
+                  </div>
+                  <h3 className="guide-card-title">Get Test ETH</h3>
+                  <p className="guide-card-desc">
+                    Request free Base Sepolia testnet ETH from the Optimism console faucet.
+                  </p>
+                </div>
+                <a 
+                  href="https://console.optimism.io/faucet" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="guide-card-btn guide-card-btn-eth"
+                >
+                  Get Free ETH
+                </a>
+              </div>
+
+              {/* Step 3 */}
+              <div className="guide-step-card">
+                <div className="guide-card-header">
+                  <div className="guide-card-icon-wrapper">
+                    <Award size={20} />
+                  </div>
+                  <h3 className="guide-card-title">Claim Now</h3>
+                  <p className="guide-card-desc">
+                    Go to the Claim Pass page to claim your badge on Base Sepolia.
+                  </p>
+                </div>
+                <button 
+                  onClick={() => {
+                    setShowGuide(false);
+                    navigate('/claim');
+                  }}
+                  className="guide-card-btn guide-card-btn-claim"
+                >
+                  Claim Badge
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

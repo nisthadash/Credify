@@ -172,7 +172,7 @@ export default function VerifyPage() {
               <MetaItem label="Issued"      value={result.eventDate ? new Date(result.eventDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'} />
               <MetaItem label="Tier"        value={<span style={{ color: tierColor, fontWeight: 700, textTransform: 'uppercase', fontSize: '13px', letterSpacing: '0.04em' }}>{result.tier}</span>} />
               <MetaItem label="Holder"      value={result.recipient ? `${result.recipient.slice(0, 8)}…${result.recipient.slice(-6)}` : '—'} mono />
-              <div style={{ gridColumn: 'span 2' }}>
+              <div className="grid-col-span-2-resp">
                 <p style={{ fontSize: '11px', color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px', fontWeight: 600 }}>
                   Transaction Hash
                 </p>

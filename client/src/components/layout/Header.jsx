@@ -136,40 +136,36 @@ export default function Header() {
         </div>
       </header>
 
-      {/* Mobile drawer */}
-      {menuOpen && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="mobile-nav-overlay"
-            onClick={() => setMenuOpen(false)}
-          />
+      {/* Mobile drawer (always mounted for smooth CSS entry/exit transitions) */}
+      {/* Backdrop */}
+      <div
+        className={`mobile-nav-overlay ${menuOpen ? 'open' : ''}`}
+        onClick={() => setMenuOpen(false)}
+      />
 
-          {/* Drawer */}
-          <div className="mobile-nav-drawer" role="navigation">
-            {NAV.map(({ label, to, icon: Icon }) => {
-              const active = to === '/' ? pathname === '/' : pathname.startsWith(to);
-              return (
-                <Link
-                  key={to}
-                  to={to}
-                  className={`mobile-nav-link ${active ? 'active' : ''}`}
-                  onClick={() => setMenuOpen(false)}
-                >
-                  <Icon size={16} />
-                  {label}
-                </Link>
-              );
-            })}
+      {/* Drawer */}
+      <div className={`mobile-nav-drawer ${menuOpen ? 'open' : ''}`} role="navigation">
+        {NAV.map(({ label, to, icon: Icon }) => {
+          const active = to === '/' ? pathname === '/' : pathname.startsWith(to);
+          return (
+            <Link
+              key={to}
+              to={to}
+              className={`mobile-nav-link ${active ? 'active' : ''}`}
+              onClick={() => setMenuOpen(false)}
+            >
+              <Icon size={16} />
+              {label}
+            </Link>
+          );
+        })}
 
-            {/* Wallet connect inside drawer */}
-            <div className="mobile-nav-divider" />
-            <div style={{ padding: '4px 8px' }}>
-              <ConnectWalletButton style={{ width: '100%' }} />
-            </div>
-          </div>
-        </>
-      )}
+        {/* Wallet connect inside drawer */}
+        <div className="mobile-nav-divider" />
+        <div style={{ padding: '4px 8px' }}>
+          <ConnectWalletButton style={{ width: '100%' }} />
+        </div>
+      </div>
     </>
   );
 }

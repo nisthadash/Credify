@@ -9,6 +9,7 @@ import { baseSepolia } from 'viem/chains';
 import { Contract } from 'ethers';
 import { useEthersSigner } from '../utils/ethers.js';
 import { CONTRACT_ADDRESS, ABI } from '../config/contract.js';
+import ConnectWalletButton from '../components/wallet/ConnectWalletButton.jsx';
 
 const TIERS = [
   { level: 0, name: 'Event Pass', description: 'Your entry pass for registering and checking in.', icon: Compass, color: '#00f2fe', subtitle: 'Tier 0 - Registration' },
@@ -119,24 +120,24 @@ export default function Home() {
   const [claimingTier, setClaimingTier] = useState(null); // tier level object being claimed/upgraded
   const [ugfStep, setUgfStep] = useState(''); // 'quoting' | 'settling' | 'executing' | 'confirming' | 'success'
   const [txDetails, setTxDetails] = useState({ tokenId: null, txHash: '', tier: '', metadataUri: '' });
+  const [ugfError, setUgfError] = useState('');
 
   // Standard eligibility check for Event Pass (Tier 0)
   const { checked, isEligible, eventTitle, eventId, loading: loadingEligibility } = useEligibility(address, isConnected);
 
   // Real UGF Claim Flow Hook
-  const { ugfStep: realUgfStep, txDetails: realTxDetails, triggerClaim, reset: resetRealUgf } = useUGFClaim();
+  const { ugfStep: realUgfStep, txDetails: realTxDetails, error: realError, triggerClaim, reset: resetRealUgf } = useUGFClaim();
 
   // Sync real UGF states to local states when claiming Tier 0 (onchain)
   useEffect(() => {
     if (claimingTier && claimingTier.level === 0) {
-      if (realUgfStep) {
-        setUgfStep(realUgfStep);
-      }
-      if (realTxDetails) {
-        setTxDetails(realTxDetails);
+      setUgfStep(realUgfStep);
+      setTxDetails(realTxDetails);
+      if (realError) {
+        setUgfError(realError);
       }
     }
-  }, [realUgfStep, realTxDetails, claimingTier]);
+  }, [realUgfStep, realTxDetails, realError, claimingTier]);
 
   const loadCredentials = async () => {
     if (!address) return;
@@ -163,6 +164,7 @@ export default function Home() {
   useEffect(() => {
     if (!isConnected || !address) {
       setUgfStep('');
+      setUgfError('');
       setClaimingTier(null);
       setSimulateApproval(false);
       resetRealUgf();
@@ -206,8 +208,9 @@ export default function Home() {
   // UGF Gasless Minting Simulator
   const triggerUgfClaim = async () => {
     if (claimingTier === null) return;
+    setUgfError('');
     
-    if (claimingTier.level === 0) {
+    if (claimingTier.level === 0 && onchainEligible) {
       try {
         // Real UGF flow
         await triggerClaim(address, eventId || '664cc56a7d7324a0d85485ab', 0);
@@ -216,9 +219,11 @@ export default function Home() {
         setSimulateApproval(false);
       } catch (err) {
         console.error('Real UGF claim failed:', err);
+        setUgfError(err.message || 'Real UGF claim failed');
+        setUgfStep('');
       }
     } else {
-      // Simulated UGF flow
+      // Simulated UGF flow for level > 0 OR when user is not whitelisted on-chain (so they can still demo)
       // Step 1: Quote (Calculates gas in Mock USD)
       setUgfStep('quoting');
       await new Promise(r => setTimeout(r, 1800));
@@ -234,37 +239,43 @@ export default function Home() {
       // Step 4: Confirm (Block is finalized, mint is confirmed onchain)
       setUgfStep('confirming');
       
-      const mockTxHash = '0x' + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join('');
-      const randomTokenId = Math.floor(Math.random() * 500) + 1;
-      const protocol = window.location.protocol;
-      const host = window.location.host;
-      const mockMetadata = `${protocol}//${host}/api/credentials/metadata/${address}/event-tier-${claimingTier.level}`;
+      try {
+        const mockTxHash = '0x' + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join('');
+        const randomTokenId = Math.floor(Math.random() * 500) + 1;
+        const protocol = window.location.protocol;
+        const host = window.location.host;
+        const mockMetadata = `${protocol}//${host}/api/credentials/metadata/${address}/event-tier-${claimingTier.level}`;
 
-      // Save claim through standardized credential service
-      await saveClaim({
-        tokenId: randomTokenId,
-        walletAddress: address,
-        eventId: '664cc56a7d7324a0d85485ab', // Standard identifier
-        txHash: mockTxHash,
-        metadataUri: mockMetadata,
-        tierLevel: claimingTier.level
-      });
+        // Save claim through standardized credential service
+        await saveClaim({
+          tokenId: randomTokenId,
+          walletAddress: address,
+          eventId: '664cc56a7d7324a0d85485ab', // Standard identifier
+          txHash: mockTxHash,
+          metadataUri: mockMetadata,
+          tierLevel: claimingTier.level
+        });
 
-      setTxDetails({
-        tokenId: randomTokenId,
-        txHash: mockTxHash,
-        tier: claimingTier.name,
-        metadataUri: mockMetadata
-      });
-      
-      await new Promise(r => setTimeout(r, 1200));
-      setUgfStep('success');
+        setTxDetails({
+          tokenId: randomTokenId,
+          txHash: mockTxHash,
+          tier: claimingTier.name,
+          metadataUri: mockMetadata
+        });
+        
+        await new Promise(r => setTimeout(r, 1200));
+        setUgfStep('success');
 
-      // Reload claimed credentials immediately to update UI status
-      await loadCredentials();
-      
-      // Turn off simulator approval so they have to toggle it again for the next level
-      setSimulateApproval(false);
+        // Reload claimed credentials immediately to update UI status
+        await loadCredentials();
+        
+        // Turn off simulator approval so they have to toggle it again for the next level
+        setSimulateApproval(false);
+      } catch (err) {
+        console.error('Simulated UGF claim failed:', err);
+        setUgfError(err.message || 'Simulated UGF claim failed');
+        setUgfStep('');
+      }
     }
   };
 
@@ -274,6 +285,7 @@ export default function Home() {
     setSimulateApproval(false);
     setClaimingTier(null);
     setUgfStep('');
+    setUgfError('');
     resetRealUgf();
     alert('Demo reset successfully! All mock credentials have been cleared.');
   };
@@ -359,67 +371,42 @@ export default function Home() {
               return (
                 <div 
                   key={tier.level} 
+                  className="timeline-row"
                   style={{ 
-                    display: 'flex', 
-                    gap: '24px', 
-                    alignItems: 'stretch', 
-                    position: 'relative',
                     opacity: opacityStyle,
-                    transition: 'all 0.3s ease',
-                    pointerEvents: 'auto'
                   }}
                 >
                   {/* Left Side: Timeline column with connection lines and node icon */}
-                  <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'center', 
-                    flexShrink: 0, 
-                    position: 'relative', 
-                    width: '56px' 
-                  }}>
+                  <div className="timeline-line-col">
                     {/* Upper line segment (connects to previous row) */}
                     {idx > 0 && (
-                      <div style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: '26px',
-                        width: '4px',
-                        height: '28px',
-                        background: claimedLevels.has(TIERS[idx - 1].level) ? 'var(--success)' : 'rgba(255,255,255,0.06)',
-                        zIndex: 1
-                      }} />
+                      <div 
+                        className="timeline-line-upper"
+                        style={{
+                          background: claimedLevels.has(TIERS[idx - 1].level) ? 'var(--success)' : 'rgba(255,255,255,0.06)',
+                        }} 
+                      />
                     )}
 
                     {/* Lower line segment (connects to next row through the gap) */}
                     {idx < TIERS.length - 1 && (
-                      <div style={{
-                        position: 'absolute',
-                        top: '28px',
-                        bottom: '-24px', // extends 24px below the row to bridge the gap
-                        left: '26px',
-                        width: '4px',
-                        background: claimedLevels.has(tier.level) ? 'var(--success)' : 'rgba(255,255,255,0.06)',
-                        zIndex: 1
-                      }} />
+                      <div 
+                        className="timeline-line-lower"
+                        style={{
+                          background: claimedLevels.has(tier.level) ? 'var(--success)' : 'rgba(255,255,255,0.06)',
+                        }} 
+                      />
                     )}
 
                     {/* Node Icon Container */}
-                    <div style={{ 
-                      width: '56px', 
-                      height: '56px', 
-                      borderRadius: '50%', 
-                      background: iconBg, 
-                      border: `2px solid ${iconBorderColor}`,
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center',
-                      boxShadow: isClaimed ? '0 0 10px rgba(34,197,94,0.3)' : (isEligible ? `0 0 10px ${tier.color}40` : 'none'),
-                      transition: 'all 0.3s ease',
-                      zIndex: 2,
-                      position: 'relative',
-                      alignSelf: 'flex-start'
-                    }}>
+                    <div 
+                      className="timeline-node"
+                      style={{ 
+                        background: iconBg, 
+                        border: `2px solid ${iconBorderColor}`,
+                        boxShadow: isClaimed ? '0 0 10px rgba(34,197,94,0.3)' : (isEligible ? `0 0 10px ${tier.color}40` : 'none'),
+                      }}
+                    >
                       {isClaimed ? (
                         <CheckCircle2 size={24} style={{ color: 'var(--success)' }} />
                       ) : isAwaiting ? (
@@ -554,9 +541,10 @@ export default function Home() {
             {!isConnected ? (
               <div style={{ textAlign: 'center', padding: '16px 0' }}>
                 <ShieldAlert size={40} style={{ color: 'var(--warning)', marginBottom: '12px' }} />
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '14px' }}>
-                  Please connect your wallet in the header navigation to interact with the progression timeline.
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '18px' }}>
+                  Connect your wallet to view connection status and claim your credentials.
                 </p>
+                <ConnectWalletButton style={{ margin: '0 auto', display: 'inline-flex' }} />
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.9rem' }}>
@@ -598,6 +586,7 @@ export default function Home() {
           {/* Centralized UGF Gasless claiming console */}
           <div 
             className="glass-panel" 
+            id="ugf-console"
             style={{ 
               padding: '28px', 
               border: claimingTier ? `1px solid ${claimingTier.color}` : '1px solid rgba(255,255,255,0.08)',
@@ -611,9 +600,12 @@ export default function Home() {
             </h3>
 
             {!isConnected ? (
-              <p style={{ color: 'var(--text-subtle)', fontSize: '0.9rem', textAlign: 'center', padding: '10px 0' }}>
-                Connect your wallet to enable gasless credential minting.
-              </p>
+              <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                <p style={{ color: 'var(--text-subtle)', fontSize: '0.9rem', marginBottom: '18px' }}>
+                  Connect your wallet to enable gasless credential minting.
+                </p>
+                <ConnectWalletButton style={{ margin: '0 auto', display: 'inline-flex' }} />
+              </div>
             ) : !claimingTier ? (
               <div style={{ padding: '10px 0', textAlign: 'center' }}>
                 <div style={{ 
@@ -667,8 +659,34 @@ export default function Home() {
                 {ugfStep === '' && (
                   <div>
                     <div className="info-note" style={{ marginBottom: '16px' }}>
-                      <strong>Gasless Abstraction:</strong> The Universal Gas Framework pays the required network gas fee on Base Sepolia. The interaction costs 0.15 Mock USD settled directly from your event credit account.
+                      {claimingTier.level === 0 && !onchainEligible ? (
+                        <>
+                          <strong>Simulation Mode:</strong> Since your wallet is not whitelisted on-chain, we are running in simulated gasless claim mode. Whitelist your wallet using Owner helper tools to run the real UGF flow.
+                        </>
+                      ) : (
+                        <>
+                          <strong>Gasless Abstraction:</strong> The Universal Gas Framework pays the required network gas fee on Base Sepolia. The interaction costs 0.15 Mock USD settled directly from your event credit account.
+                        </>
+                      )}
                     </div>
+                    {ugfError && (
+                      <div className="error-note" style={{ 
+                        background: 'rgba(239, 68, 68, 0.08)',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        color: '#ff8a8a',
+                        padding: '12px',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: '0.85rem',
+                        lineHeight: 1.4,
+                        marginBottom: '16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px'
+                      }}>
+                        <span style={{ fontWeight: 700 }}>Transaction Failed:</span>
+                        <span>{ugfError}</span>
+                      </div>
+                    )}
                     <button 
                       onClick={triggerUgfClaim} 
                       className="btn btn-full btn-primary animate-pop-in"
@@ -887,10 +905,16 @@ export default function Home() {
   function startClaimFlow(tier) {
     setClaimingTier(tier);
     setUgfStep('');
+    setUgfError('');
     
     // Smooth scroll down to UGF console if mobile layout
     if (window.innerWidth <= 768) {
-      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      const consoleEl = document.getElementById('ugf-console');
+      if (consoleEl) {
+        consoleEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      }
     }
   }
 }
