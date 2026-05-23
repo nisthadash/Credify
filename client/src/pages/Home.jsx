@@ -370,67 +370,42 @@ export default function Home() {
               return (
                 <div 
                   key={tier.level} 
+                  className="timeline-row"
                   style={{ 
-                    display: 'flex', 
-                    gap: '24px', 
-                    alignItems: 'stretch', 
-                    position: 'relative',
                     opacity: opacityStyle,
-                    transition: 'all 0.3s ease',
-                    pointerEvents: 'auto'
                   }}
                 >
                   {/* Left Side: Timeline column with connection lines and node icon */}
-                  <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'center', 
-                    flexShrink: 0, 
-                    position: 'relative', 
-                    width: '56px' 
-                  }}>
+                  <div className="timeline-line-col">
                     {/* Upper line segment (connects to previous row) */}
                     {idx > 0 && (
-                      <div style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: '26px',
-                        width: '4px',
-                        height: '28px',
-                        background: claimedLevels.has(TIERS[idx - 1].level) ? 'var(--success)' : 'rgba(255,255,255,0.06)',
-                        zIndex: 1
-                      }} />
+                      <div 
+                        className="timeline-line-upper"
+                        style={{
+                          background: claimedLevels.has(TIERS[idx - 1].level) ? 'var(--success)' : 'rgba(255,255,255,0.06)',
+                        }} 
+                      />
                     )}
 
                     {/* Lower line segment (connects to next row through the gap) */}
                     {idx < TIERS.length - 1 && (
-                      <div style={{
-                        position: 'absolute',
-                        top: '28px',
-                        bottom: '-24px', // extends 24px below the row to bridge the gap
-                        left: '26px',
-                        width: '4px',
-                        background: claimedLevels.has(tier.level) ? 'var(--success)' : 'rgba(255,255,255,0.06)',
-                        zIndex: 1
-                      }} />
+                      <div 
+                        className="timeline-line-lower"
+                        style={{
+                          background: claimedLevels.has(tier.level) ? 'var(--success)' : 'rgba(255,255,255,0.06)',
+                        }} 
+                      />
                     )}
 
                     {/* Node Icon Container */}
-                    <div style={{ 
-                      width: '56px', 
-                      height: '56px', 
-                      borderRadius: '50%', 
-                      background: iconBg, 
-                      border: `2px solid ${iconBorderColor}`,
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center',
-                      boxShadow: isClaimed ? '0 0 10px rgba(34,197,94,0.3)' : (isEligible ? `0 0 10px ${tier.color}40` : 'none'),
-                      transition: 'all 0.3s ease',
-                      zIndex: 2,
-                      position: 'relative',
-                      alignSelf: 'flex-start'
-                    }}>
+                    <div 
+                      className="timeline-node"
+                      style={{ 
+                        background: iconBg, 
+                        border: `2px solid ${iconBorderColor}`,
+                        boxShadow: isClaimed ? '0 0 10px rgba(34,197,94,0.3)' : (isEligible ? `0 0 10px ${tier.color}40` : 'none'),
+                      }}
+                    >
                       {isClaimed ? (
                         <CheckCircle2 size={24} style={{ color: 'var(--success)' }} />
                       ) : isAwaiting ? (

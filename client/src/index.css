@@ -803,33 +803,50 @@ h1, h2, h3, h4, h5, h6 {
 .hamburger.open span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
 
 .mobile-nav-overlay {
-  display: none;
+  display: block;
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
   z-index: 900;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(4px);
-  animation: fadeIn 0.2s ease;
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mobile-nav-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .mobile-nav-drawer {
   position: fixed;
-  top: 80px;
+  top: 76px;
   left: 16px;
   right: 16px;
   z-index: 950;
-  background: rgba(13, 13, 25, 0.97);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(13, 13, 25, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-xl);
-  padding: 12px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
-  animation: slideUp 0.25s cubic-bezier(0.22,1,0.36,1) both;
+  gap: 6px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(37, 99, 235, 0.08);
+  opacity: 0;
+  transform: translateY(-16px) scale(0.97);
+  pointer-events: none;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mobile-nav-drawer.open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
 }
 
 .mobile-nav-link {
@@ -1388,5 +1405,172 @@ h1, h2, h3, h4, h5, h6 {
     transform: translateY(0);
   }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   MOBILE OPTIMIZATIONS & SMOOTH CLICKS OVERRIDES
+───────────────────────────────────────────────────────────── */
+
+/* 1. Eliminate tap flash and set touch behaviors */
+a, button, input, select, textarea, 
+[role="button"], .card, .credential-card, .hover-box-card, .btn, .mobile-nav-link {
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+/* 2. Tactical haptic-like active scale feedback */
+.btn:active:not(:disabled),
+.mobile-nav-link:active,
+.get-started-btn:active,
+.new-here-btn:active,
+.guide-close-btn:active,
+.guide-card-btn:active,
+.seg-btn:active {
+  transform: scale(0.96) !important;
+  transition: transform 0.1s ease !important;
+}
+
+/* 3. Touch/Hover protection: Neutralize hover states on mobile screens to prevent sticky hover effect */
+@media (hover: none) {
+  .btn:hover:not(:disabled) {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: #ffffff !important;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    border-color: rgba(255, 255, 255, 0.4) !important;
+    box-shadow: none !important;
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--secondary) !important;
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: var(--error) !important;
+  }
+  .get-started-btn:hover {
+    transform: none !important;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15) !important;
+  }
+  .get-started-btn:hover .get-started-btn-icon {
+    left: 4px !important;
+    top: 4px !important;
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 12px !important;
+  }
+  .get-started-btn:hover .get-started-btn-text {
+    color: #000000 !important;
+    transform: translateX(10px) !important;
+  }
+  .get-started-btn:hover svg {
+    transform: none !important;
+  }
+  .new-here-btn:hover {
+    background: rgba(255, 255, 255, 0.04) !important;
+    color: rgba(255, 255, 255, 0.9) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    transform: none !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+  }
+  .card:hover, .credential-card:hover, .hover-box-card:hover {
+    border-color: var(--border) !important;
+    box-shadow: none !important;
+  }
+  .guide-step-card:hover {
+    background: rgba(255, 255, 255, 0.02) !important;
+    border-color: rgba(255, 255, 255, 0.06) !important;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+}
+
+/* 4. Responsive Grid helper classes */
+.grid-col-span-2-resp {
+  grid-column: span 2;
+}
+
+@media (max-width: 768px) {
+  .grid-col-span-2-resp {
+    grid-column: span 1 !important;
+  }
+}
+
+/* 5. Responsive Timeline classes */
+.timeline-row {
+  display: flex;
+  gap: 24px;
+  align-items: stretch;
+  position: relative;
+  transition: all 0.3s ease;
+  pointer-events: auto;
+}
+
+.timeline-line-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  position: relative;
+  width: 56px;
+}
+
+.timeline-node {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  z-index: 2;
+  position: relative;
+  align-self: flex-start;
+}
+
+.timeline-line-upper {
+  position: absolute;
+  top: 0;
+  left: 26px;
+  width: 4px;
+  height: 28px;
+  z-index: 1;
+}
+
+.timeline-line-lower {
+  position: absolute;
+  top: 28px;
+  bottom: -24px;
+  left: 26px;
+  width: 4px;
+  z-index: 1;
+}
+
+/* Extra small devices timeline squeeze */
+@media (max-width: 480px) {
+  .timeline-row {
+    gap: 12px;
+  }
+  .timeline-line-col {
+    width: 40px;
+  }
+  .timeline-node {
+    width: 40px;
+    height: 40px;
+  }
+  .timeline-node svg {
+    width: 18px;
+    height: 18px;
+  }
+  .timeline-line-upper {
+    left: 18px;
+    height: 20px;
+  }
+  .timeline-line-lower {
+    left: 18px;
+    top: 20px;
+  }
+}
+
 
 

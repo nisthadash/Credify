@@ -3,7 +3,7 @@ import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } fro
 import { baseSepolia } from 'wagmi/chains';
 import { LogOut, Wallet, AlertTriangle, Copy, CheckCheck, ExternalLink } from 'lucide-react';
 
-export default function ConnectWalletButton() {
+export default function ConnectWalletButton({ style, className, ...props }) {
   const { address, isConnected } = useAccount();
   const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
@@ -36,8 +36,9 @@ export default function ConnectWalletButton() {
         id="connect-wallet-btn"
         onClick={handleConnect}
         disabled={isPending}
-        className="btn btn-primary animate-pulse-glow"
-        style={{ padding: '0 20px', height: '40px', fontSize: '14px' }}
+        className={`btn btn-primary animate-pulse-glow ${className || ''}`}
+        style={{ padding: '0 20px', height: '40px', fontSize: '14px', ...style }}
+        {...props}
       >
         <Wallet size={15} />
         {isPending ? 'Connecting...' : 'Connect Wallet'}
@@ -50,7 +51,7 @@ export default function ConnectWalletButton() {
       <button
         id="switch-network-btn"
         onClick={() => switchChain({ chainId: baseSepolia.id })}
-        className="btn"
+        className={`btn ${className || ''}`}
         style={{
           background: 'rgba(245, 158, 11, 0.15)',
           color: '#fcd34d',
@@ -59,7 +60,9 @@ export default function ConnectWalletButton() {
           height: '40px',
           fontSize: '14px',
           borderRadius: '12px',
+          ...style,
         }}
+        {...props}
       >
         <AlertTriangle size={15} />
         Switch to Base Sepolia
@@ -68,7 +71,7 @@ export default function ConnectWalletButton() {
   }
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ position: 'relative', ...style }} className={className} {...props}>
       <button
         id="wallet-address-btn"
         onClick={() => setShowDropdown(!showDropdown)}
@@ -81,6 +84,7 @@ export default function ConnectWalletButton() {
           background: 'rgba(37, 99, 235, 0.08)',
           color: '#93c5fd',
           gap: '8px',
+          width: style?.width || '100%',
         }}
       >
         <span style={{

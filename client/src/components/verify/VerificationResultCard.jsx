@@ -61,11 +61,14 @@ export default function VerificationResultCard({ result, searchType }) {
           </div>
 
           {/* Details grid */}
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr',
-            gap: '20px', paddingTop: '20px',
-            borderTop: '1px solid var(--border)',
-          }}>
+          <div 
+            className="grid-2col"
+            style={{
+              paddingTop: '20px',
+              borderTop: '1px solid var(--border)',
+              gap: '20px',
+            }}
+          >
             <InfoRow icon={<Hash size={14} />} label="Token ID" value={`#${result.tokenId}`} mono />
             <InfoRow
               icon={<Calendar size={14} />}
@@ -74,17 +77,17 @@ export default function VerificationResultCard({ result, searchType }) {
                 ? new Date(result.eventDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
                 : '—'}
             />
-            <div style={{ gridColumn: 'span 2' }}>
+            <div className="grid-col-span-2-resp">
               <InfoRow
                 icon={<div style={{ width: 8, height: 8, borderRadius: '50%', background: tierColor, marginTop: '2px', flexShrink: 0 }} />}
                 label="Credential Tier"
                 value={<span style={{ color: tierColor, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '13px' }}>{result.tier}</span>}
               />
             </div>
-            <div style={{ gridColumn: 'span 2' }}>
+            <div className="grid-col-span-2-resp">
               <InfoRow icon={<User size={14} />} label="Holder Address" value={result.recipient} mono />
             </div>
-            <div style={{ gridColumn: 'span 2' }}>
+            <div className="grid-col-span-2-resp">
               <p style={{ fontSize: '11px', color: 'var(--text-subtle)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
                 Transaction Hash
               </p>
