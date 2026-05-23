@@ -1573,4 +1573,38 @@ a, button, input, select, textarea,
 }
 
 
+/* ── Wallet Bottom Sheet & Modal ── */
 
+/* Prevent body scrolling when wallet overlay is open */
+body.wallet-open {
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* iOS safe-area padding so the sheet sits above the home indicator */
+.wallet-sheet {
+  padding-bottom: max(32px, env(safe-area-inset-bottom, 32px)) !important;
+}
+
+/* Clean address wrapping inside the sheet */
+.wallet-sheet .mono {
+  word-break: break-all;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* Remove tap highlight on wallet connect buttons */
+.wallet-connect-option,
+.wallet-connect-option * {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Haptic active feedback on mobile wallet option buttons */
+@media (hover: none) {
+  .wallet-connect-option:active {
+    transform: scale(0.97) !important;
+    background: rgba(249, 115, 22, 0.15) !important;
+    border-color: rgba(249, 115, 22, 0.5) !important;
+    transition: none !important;
+  }
+}

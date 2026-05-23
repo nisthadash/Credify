@@ -1,7 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
-import { LogOut, Wallet, AlertTriangle, Copy, CheckCheck, ExternalLink, X, ChevronRight, ShieldCheck, Sparkles, Info } from 'lucide-react';
+import { LogOut, Wallet, AlertTriangle, Copy, CheckCheck, ExternalLink, X, ChevronRight, ShieldCheck } from 'lucide-react';
+
+const MetaMaskIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+    <path d="M30.05 13.9L25.37 5.75L23.47 9.87L27.42 15.35L30.05 13.9Z" fill="#E2761B"/>
+    <path d="M1.95 13.9L6.63 5.75L8.53 9.87L4.58 15.35L1.95 13.9Z" fill="#E2761B"/>
+    <path d="M26.27 22.02L27.52 15.22L23.57 9.74L19.45 15.84L22.18 19.34L26.27 22.02Z" fill="#E2761B"/>
+    <path d="M5.73 22.02L4.48 15.22L8.43 9.74L12.55 15.84L9.82 19.34L5.73 22.02Z" fill="#E2761B"/>
+    <path d="M12.55 15.83L8.43 9.73L14.7 8.54L16 11.83L17.3 8.54L23.57 9.73L19.45 15.83L16 17.65L12.55 15.83Z" fill="#E2761B"/>
+    <path d="M22.18 19.34L19.45 15.84L16 17.66L12.55 15.84L9.82 19.34L16 23.35L22.18 19.34Z" fill="#D7C1B1"/>
+    <path d="M22.18 19.34L16 23.35L16 29.35L25.27 23.35L22.18 19.34Z" fill="#231F20"/>
+    <path d="M9.82 19.34L16 23.35L16 29.35L6.73 23.35L9.82 19.34Z" fill="#231F20"/>
+    <path d="M25.27 23.35L16 29.35L26.57 26.6L30.05 13.9L25.27 23.35Z" fill="#C0AC9D"/>
+    <path d="M6.73 23.35L16 29.35L5.43 26.6L1.95 13.9L6.73 23.35Z" fill="#C0AC9D"/>
+  </svg>
+);
 
 export default function ConnectWalletButton({ style, className, ...props }) {
   const { address, isConnected } = useAccount();
@@ -12,8 +27,24 @@ export default function ConnectWalletButton({ style, className, ...props }) {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   const isCorrectNetwork = isConnected && chainId === baseSepolia.id;
+
+  // Adaptive viewport listener
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Lock body scroll when any overlay is open on mobile
+  useEffect(() => {
+    const isOpen = (showDropdown || showConnectModal) && isMobile;
+    document.body.classList.toggle('wallet-open', isOpen);
+    return () => document.body.classList.remove('wallet-open');
+  }, [showDropdown, showConnectModal, isMobile]);
 
   const formatAddress = (addr) =>
     addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : '';
@@ -31,11 +62,6 @@ export default function ConnectWalletButton({ style, className, ...props }) {
     window.open(deepLink, '_blank');
   };
 
-  const handleOpenCoinbaseDeepLink = () => {
-    const deepLink = `https://go.cb-w.com/dapp?cb_url=${encodeURIComponent(window.location.href)}`;
-    window.open(deepLink, '_blank');
-  };
-
   const handleConnectInjected = () => {
     if (typeof window !== 'undefined' && window.ethereum) {
       const injConnector = connectors.find(c => c.id === 'injected') || connectors[0];
@@ -44,23 +70,11 @@ export default function ConnectWalletButton({ style, className, ...props }) {
         setShowConnectModal(false);
       }
     } else {
-      // Injected browser wallet not detected
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       if (isMobile) {
         handleOpenMetaMaskDeepLink();
       } else {
         window.open('https://metamask.io/download/', '_blank');
       }
-    }
-  };
-
-  const handleConnectCoinbase = () => {
-    const cbConnector = connectors.find(c => c.id.toLowerCase().includes('coinbase'));
-    if (cbConnector) {
-      connect({ connector: cbConnector });
-      setShowConnectModal(false);
-    } else {
-      alert("Coinbase Wallet SDK is loading, please try again in a moment.");
     }
   };
 
@@ -72,14 +86,21 @@ export default function ConnectWalletButton({ style, className, ...props }) {
           to { opacity: 1; }
         }
         @keyframes wallet-slide-up {
-          from { transform: translateY(24px); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
+          from { transform: translateY(100%); }
+          to { transform: translateY(0); }
+        }
+        @keyframes wallet-scale-in {
+          from { transform: scale(0.95); opacity: 0; }
+          to { transform: scale(1); opacity: 1; }
         }
         .wallet-overlay {
-          animation: wallet-fade-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          animation: wallet-fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
-        .wallet-card {
-          animation: wallet-slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        .wallet-sheet {
+          animation: wallet-slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .wallet-modal-dialog {
+          animation: wallet-scale-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
       `}</style>
 
@@ -139,140 +160,242 @@ export default function ConnectWalletButton({ style, className, ...props }) {
         </button>
       )}
 
-      {/* Connected Dropdown */}
+      {/* Account Info: Adaptive Dropdown vs Mobile Drawer */}
       {isConnected && showDropdown && (
         <>
+          {/* Backdrop */}
           <div
-            style={{ position: 'fixed', inset: 0, zIndex: 999 }}
+            style={{ position: 'fixed', inset: 0, zIndex: 9999, background: isMobile ? 'rgba(4,4,8,0.7)' : 'transparent', backdropFilter: isMobile ? 'blur(4px)' : 'none' }}
             onClick={() => setShowDropdown(false)}
           />
-          <div
-            className="glass-panel"
-            style={{
-              position: 'absolute',
-              top: 'calc(100% + 8px)',
-              right: 0,
-              width: '240px',
-              padding: '8px',
-              zIndex: 1000,
-              background: 'rgba(10, 10, 18, 0.99)',
-              border: '1px solid rgba(37, 99, 235, 0.35)',
-              boxShadow: '0 16px 48px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(37, 99, 235, 0.15)',
-              backdropFilter: 'blur(24px)',
-              WebkitBackdropFilter: 'blur(24px)',
-            }}
-          >
-            <div style={{
-              padding: '10px 12px 10px',
-              borderBottom: '1px solid var(--border)',
-              marginBottom: '6px',
-            }}>
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Connected wallet
+
+          {!isMobile ? (
+            /* Desktop absolute dropdown card */
+            <div
+              className="glass-panel"
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 8px)',
+                right: 0,
+                width: '240px',
+                padding: '8px',
+                zIndex: 10000,
+                background: 'rgba(10, 10, 18, 0.99)',
+                border: '1px solid rgba(37, 99, 235, 0.35)',
+                boxShadow: '0 16px 48px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(37, 99, 235, 0.15)',
+                backdropFilter: 'blur(24px)',
+                WebkitBackdropFilter: 'blur(24px)',
+              }}
+            >
+              <div style={{
+                padding: '10px 12px 10px',
+                borderBottom: '1px solid var(--border)',
+                marginBottom: '6px',
+              }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Connected wallet
+                </div>
+                <div className="mono" style={{ fontSize: '13px', color: 'var(--text)', wordBreak: 'break-all' }}>
+                  {address}
+                </div>
               </div>
-              <div className="mono" style={{ fontSize: '13px', color: 'var(--text)', wordBreak: 'break-all' }}>
-                {address}
+
+              <button
+                onClick={handleCopy}
+                style={{
+                  width: '100%', background: 'transparent', border: 'none',
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '8px 12px', borderRadius: '8px', cursor: 'pointer',
+                  color: 'var(--text-muted)', fontSize: '13px',
+                  transition: 'var(--t)', fontFamily: 'var(--font-body)',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-hover)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                {copied ? <CheckCheck size={14} color="#22c55e" /> : <Copy size={14} />}
+                {copied ? 'Copied!' : 'Copy Address'}
+              </button>
+
+              <a
+                href={`https://sepolia.basescan.org/address/${address}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  width: '100%', background: 'transparent', border: 'none',
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '8px 12px', borderRadius: '8px', cursor: 'pointer',
+                  color: 'var(--text-muted)', fontSize: '13px',
+                  transition: 'var(--t)', textDecoration: 'none',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-hover)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <ExternalLink size={14} />
+                View on Basescan
+              </a>
+
+              <div style={{ borderTop: '1px solid var(--border)', marginTop: '6px', paddingTop: '6px' }} />
+
+              <button
+                onClick={() => { disconnect(); setShowDropdown(false); }}
+                style={{
+                  width: '100%', background: 'transparent', border: 'none',
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '8px 12px', borderRadius: '8px', cursor: 'pointer',
+                  color: '#fca5a5', fontSize: '13px',
+                  transition: 'var(--t)', fontFamily: 'var(--font-body)',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <LogOut size={14} />
+                Disconnect
+              </button>
+            </div>
+          ) : (
+            /* Mobile bottom sheet drawer */
+            <div
+              className="wallet-sheet"
+              onClick={e => e.stopPropagation()}
+              style={{
+                position: 'fixed',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                zIndex: 10000,
+                background: 'rgba(13, 13, 26, 0.98)',
+                borderTop: '1px solid rgba(255, 255, 255, 0.12)',
+                borderRadius: '24px 24px 0 0',
+                padding: '16px 20px 32px',
+                boxShadow: '0 -16px 48px rgba(0, 0, 0, 0.75)',
+                backdropFilter: 'blur(20px)',
+                WebkitBackdropFilter: 'blur(20px)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '20px'
+              }}
+            >
+              {/* Drawer Handle */}
+              <div style={{ width: '36px', height: '4px', background: 'rgba(255, 255, 255, 0.2)', borderRadius: '2px', margin: '0 auto' }} />
+
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '1rem', fontWeight: 800, color: '#fff', fontFamily: 'var(--font-display)' }}>Wallet Details</span>
+                <button 
+                  onClick={() => setShowDropdown(false)}
+                  style={{
+                    background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '50%',
+                    width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'var(--text-muted)'
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+
+              {/* Info Block */}
+              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '16px', padding: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Status</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#86efac', fontWeight: 600 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e' }} />
+                    Connected to Base Sepolia
+                  </span>
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '6px' }}>
+                  Wallet Address
+                </div>
+                <div className="mono" style={{ fontSize: '13px', color: '#fff', wordBreak: 'break-all', lineHeight: 1.5 }}>
+                  {address}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <button
+                  onClick={handleCopy}
+                  className="btn btn-ghost"
+                  style={{ width: '100%', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '14px' }}
+                >
+                  {copied ? <CheckCheck size={14} color="#22c55e" /> : <Copy size={14} />}
+                  {copied ? 'Copied to Clipboard' : 'Copy Address'}
+                </button>
+
+                <a
+                  href={`https://sepolia.basescan.org/address/${address}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-ghost"
+                  style={{ width: '100%', height: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '14px', textDecoration: 'none' }}
+                >
+                  <ExternalLink size={14} />
+                  View on Basescan
+                </a>
+
+                <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '4px 0' }} />
+
+                <button
+                  onClick={() => { disconnect(); setShowDropdown(false); }}
+                  className="btn btn-danger btn-full"
+                  style={{ width: '100%', height: '46px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '14px' }}
+                >
+                  <LogOut size={14} />
+                  Disconnect Wallet
+                </button>
               </div>
             </div>
-
-            <button
-              onClick={handleCopy}
-              style={{
-                width: '100%', background: 'transparent', border: 'none',
-                display: 'flex', alignItems: 'center', gap: '8px',
-                padding: '8px 12px', borderRadius: '8px', cursor: 'pointer',
-                color: 'var(--text-muted)', fontSize: '13px',
-                transition: 'var(--t)', fontFamily: 'var(--font-body)',
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-hover)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-            >
-              {copied ? <CheckCheck size={14} color="#22c55e" /> : <Copy size={14} />}
-              {copied ? 'Copied!' : 'Copy Address'}
-            </button>
-
-            <a
-              href={`https://sepolia.basescan.org/address/${address}`}
-              target="_blank"
-              rel="noreferrer"
-              style={{
-                width: '100%', background: 'transparent', border: 'none',
-                display: 'flex', alignItems: 'center', gap: '8px',
-                padding: '8px 12px', borderRadius: '8px', cursor: 'pointer',
-                color: 'var(--text-muted)', fontSize: '13px',
-                transition: 'var(--t)', textDecoration: 'none',
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-hover)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-            >
-              <ExternalLink size={14} />
-              View on Basescan
-            </a>
-
-            <div style={{ borderTop: '1px solid var(--border)', marginTop: '6px', paddingTop: '6px' }} />
-
-            <button
-              onClick={() => { disconnect(); setShowDropdown(false); }}
-              style={{
-                width: '100%', background: 'transparent', border: 'none',
-                display: 'flex', alignItems: 'center', gap: '8px',
-                padding: '8px 12px', borderRadius: '8px', cursor: 'pointer',
-                color: '#fca5a5', fontSize: '13px',
-                transition: 'var(--t)', fontFamily: 'var(--font-body)',
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-            >
-              <LogOut size={14} />
-              Disconnect
-            </button>
-          </div>
+          )}
         </>
       )}
 
-      {/* Connect Modal / Bottom Sheet */}
+      {/* Connect Modal: Adaptive Dialog vs Bottom Sheet */}
       {!isConnected && showConnectModal && (
         <div 
           className="wallet-overlay"
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(4, 4, 8, 0.85)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
+            background: 'rgba(4, 4, 8, 0.8)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
             display: 'flex',
-            alignItems: 'center',
+            alignItems: isMobile ? 'flex-end' : 'center',
             justifyContent: 'center',
-            zIndex: 9999,
-            padding: '16px'
+            zIndex: 99999,
+            padding: isMobile ? 0 : '16px'
           }}
         >
-          {/* Backdrop Closer */}
+          {/* Backdrop Click Close */}
           <div style={{ position: 'absolute', inset: 0 }} onClick={() => setShowConnectModal(false)} />
 
-          {/* Modal Box */}
+          {/* Modal Container */}
           <div 
-            className="glass-panel wallet-card"
+            className={`glass-panel ${isMobile ? 'wallet-sheet' : 'wallet-modal-dialog'}`}
+            onClick={e => e.stopPropagation()}
             style={{
               position: 'relative',
-              zIndex: 10000,
+              zIndex: 100000,
               width: '100%',
-              maxWidth: '420px',
+              maxWidth: isMobile ? '100%' : '380px',
               background: 'rgba(13, 13, 26, 0.98)',
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              borderRadius: '24px',
-              padding: '24px',
+              border: isMobile ? 'none' : '1px solid rgba(255, 255, 255, 0.12)',
+              borderTop: isMobile ? '1px solid rgba(255, 255, 255, 0.12)' : '1px solid rgba(255, 255, 255, 0.12)',
+              borderRadius: isMobile ? '24px 24px 0 0' : '24px',
+              padding: isMobile ? '16px 20px 32px' : '24px',
               boxShadow: '0 24px 64px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(37, 99, 235, 0.15)',
               display: 'flex',
               flexDirection: 'column',
-              gap: '20px'
+              gap: '18px'
             }}
           >
+            {/* Drawer Handle (Mobile Only) */}
+            {isMobile && <div style={{ width: '36px', height: '4px', background: 'rgba(255, 255, 255, 0.2)', borderRadius: '2px', margin: '0 auto 6px' }} />}
+
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Wallet size={18} style={{ color: 'var(--primary)' }} />
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, color: '#fff', fontFamily: 'var(--font-display)', letterSpacing: '-0.01em' }}>
+                <Wallet size={16} style={{ color: 'var(--primary)' }} />
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: '#fff', fontFamily: 'var(--font-display)', letterSpacing: '-0.01em' }}>
                   Connect Wallet
                 </h3>
               </div>
@@ -280,90 +403,40 @@ export default function ConnectWalletButton({ style, className, ...props }) {
                 onClick={() => setShowConnectModal(false)}
                 style={{
                   background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.08)',
+                  border: 'none',
                   borderRadius: '50%',
-                  width: '32px',
-                  height: '32px',
+                  width: '28px',
+                  height: '28px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: 'var(--text-muted)',
                   cursor: 'pointer',
-                  transition: 'var(--t)',
                   padding: 0
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
               >
-                <X size={15} />
+                <X size={14} />
               </button>
             </div>
 
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
-              Connect with your preferred wallet extension or create a quick smart wallet instantly to claim gaslessly.
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
+              {isMobile 
+                ? 'Launch your MetaMask application to securely claim your credentials.'
+                : 'Connect with MetaMask to manage and claim your digital credential pass.'
+              }
             </p>
 
-            {/* Providers */}
+            {/* Custom MetaMask Option */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              
-              {/* Option 1: Coinbase Smart Wallet (RECOMMENDED) */}
-              <button
-                onClick={handleConnectCoinbase}
-                style={{
-                  width: '100%',
-                  background: 'rgba(37, 99, 235, 0.07)',
-                  border: '1px solid rgba(37, 99, 235, 0.3)',
-                  borderRadius: '16px',
-                  padding: '14px 16px',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '12px',
-                  transition: 'transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(37, 99, 235, 0.12)';
-                  e.currentTarget.style.borderColor = 'rgba(37, 99, 235, 0.5)';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = 'rgba(37, 99, 235, 0.07)';
-                  e.currentTarget.style.borderColor = 'rgba(37, 99, 235, 0.3)';
-                  e.currentTarget.style.transform = 'none';
-                }}
-              >
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  <div style={{
-                    width: '36px', height: '36px', borderRadius: '50%',
-                    background: '#0052FF', display: 'flex',
-                    alignItems: 'center', justifyContent: 'center', color: '#fff',
-                    fontSize: '18px', fontWeight: 900
-                  }}>
-                    C
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      Coinbase / Smart Wallet <span style={{ fontSize: '9px', background: 'rgba(34,197,94,0.15)', color: '#86efac', padding: '2px 6px', borderRadius: '6px', fontWeight: 700, letterSpacing: '0.03em' }}>EASY</span>
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '2px' }}>
-                      No app downloads. Securely use FaceID / Passkey.
-                    </div>
-                  </div>
-                </div>
-                <ChevronRight size={16} style={{ color: 'var(--text-subtle)' }} />
-              </button>
-
-              {/* Option 2: Browser Wallet (MetaMask / Injected) */}
               <button
                 onClick={handleConnectInjected}
+                className="wallet-connect-option"
                 style={{
                   width: '100%',
-                  background: 'rgba(255, 255, 255, 0.02)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  background: 'rgba(249, 115, 22, 0.06)',
+                  border: '1px solid rgba(249, 115, 22, 0.25)',
                   borderRadius: '16px',
-                  padding: '14px 16px',
+                  padding: '16px',
                   textAlign: 'left',
                   cursor: 'pointer',
                   display: 'flex',
@@ -373,141 +446,32 @@ export default function ConnectWalletButton({ style, className, ...props }) {
                   transition: 'transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease',
                 }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+                  e.currentTarget.style.background = 'rgba(249, 115, 22, 0.12)';
+                  e.currentTarget.style.borderColor = 'rgba(249, 115, 22, 0.45)';
                   e.currentTarget.style.transform = 'translateY(-2px)';
                 }}
                 onMouseLeave={e => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
-                  e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                  e.currentTarget.style.background = 'rgba(249, 115, 22, 0.06)';
+                  e.currentTarget.style.borderColor = 'rgba(249, 115, 22, 0.25)';
                   e.currentTarget.style.transform = 'none';
                 }}
               >
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  <div style={{
-                    width: '36px', height: '36px', borderRadius: '50%',
-                    background: 'rgba(255,255,255,0.04)', display: 'flex',
-                    alignItems: 'center', justifyContent: 'center', color: '#fff',
-                    border: '1px solid rgba(255,255,255,0.08)'
-                  }}>
-                    <Wallet size={16} />
-                  </div>
+                  <MetaMaskIcon />
                   <div>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff' }}>
-                      Injected Browser Wallet
+                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      MetaMask <span style={{ fontSize: '9px', background: 'rgba(249,115,22,0.15)', color: '#fca5a5', padding: '2px 6px', borderRadius: '6px', fontWeight: 700 }}>REQUIRED</span>
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '2px' }}>
-                      MetaMask, Coinbase browser extension, etc.
+                      {isMobile ? 'Deep-link to MetaMask app' : 'Connect via browser extension'}
                     </div>
                   </div>
                 </div>
                 <ChevronRight size={16} style={{ color: 'var(--text-subtle)' }} />
               </button>
-
-              {/* Option 3: Open MetaMask App (Mobile Helper) */}
-              {/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) && (
-                <button
-                  onClick={handleOpenMetaMaskDeepLink}
-                  style={{
-                    width: '100%',
-                    background: 'rgba(249, 115, 22, 0.05)',
-                    border: '1px solid rgba(249, 115, 22, 0.25)',
-                    borderRadius: '16px',
-                    padding: '14px 16px',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '12px',
-                    transition: 'transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease',
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = 'rgba(249, 115, 22, 0.1)';
-                    e.currentTarget.style.borderColor = 'rgba(249, 115, 22, 0.4)';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = 'rgba(249, 115, 22, 0.05)';
-                    e.currentTarget.style.borderColor = 'rgba(249, 115, 22, 0.25)';
-                    e.currentTarget.style.transform = 'none';
-                  }}
-                >
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                    <div style={{
-                      width: '36px', height: '36px', borderRadius: '50%',
-                      background: 'rgba(249, 115, 22, 0.1)', display: 'flex',
-                      alignItems: 'center', justifyContent: 'center', color: '#f97316',
-                      fontSize: '18px'
-                    }}>
-                      🦊
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff' }}>
-                        Open in MetaMask
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '2px' }}>
-                        Launch secure in-app browser automatically.
-                      </div>
-                    </div>
-                  </div>
-                  <ChevronRight size={16} style={{ color: 'var(--text-subtle)' }} />
-                </button>
-              )}
-
-              {/* Option 4: Open Coinbase Wallet App (Mobile Helper) */}
-              {/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) && (
-                <button
-                  onClick={handleOpenCoinbaseDeepLink}
-                  style={{
-                    width: '100%',
-                    background: 'rgba(0, 82, 255, 0.05)',
-                    border: '1px solid rgba(0, 82, 255, 0.25)',
-                    borderRadius: '16px',
-                    padding: '14px 16px',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '12px',
-                    transition: 'transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease',
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = 'rgba(0, 82, 255, 0.1)';
-                    e.currentTarget.style.borderColor = 'rgba(0, 82, 255, 0.4)';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = 'rgba(0, 82, 255, 0.05)';
-                    e.currentTarget.style.borderColor = 'rgba(0, 82, 255, 0.25)';
-                    e.currentTarget.style.transform = 'none';
-                  }}
-                >
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                    <div style={{
-                      width: '36px', height: '36px', borderRadius: '50%',
-                      background: 'rgba(0, 82, 255, 0.1)', display: 'flex',
-                      alignItems: 'center', justifyContent: 'center', color: '#0052ff',
-                      fontSize: '18px', fontWeight: 900
-                    }}>
-                      🛡️
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff' }}>
-                        Open in Coinbase Wallet
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '2px' }}>
-                        Launch secure Coinbase Wallet app browser.
-                      </div>
-                    </div>
-                  </div>
-                  <ChevronRight size={16} style={{ color: 'var(--text-subtle)' }} />
-                </button>
-              )}
             </div>
 
-            {/* Note */}
+            {/* Neon Tip */}
             <div style={{
               background: 'rgba(255,255,255,0.02)',
               border: '1px dashed rgba(255,255,255,0.08)',
@@ -519,7 +483,7 @@ export default function ConnectWalletButton({ style, className, ...props }) {
             }}>
               <ShieldCheck size={16} style={{ color: 'var(--success)', marginTop: '2px', flexShrink: 0 }} />
               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                <strong>Zero ETH gas friction</strong>: Credify's mock credits whitelist allows UGF to settle gas costs automatically. You pay zero gas and zero network fees!
+                <strong>No gas, no friction</strong>: Whitelisted credentials enable UGF to cover all Base Sepolia transaction fees behind the scenes.
               </div>
             </div>
 
