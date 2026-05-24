@@ -171,6 +171,19 @@ export default function Home() {
     }
   }, [isConnected, address]);
 
+  // Smooth scroll to UGF console when claimingTier changes (after DOM renders the new console size)
+  useEffect(() => {
+    if (claimingTier) {
+      const timer = setTimeout(() => {
+        const consoleEl = document.getElementById('ugf-console');
+        if (consoleEl) {
+          consoleEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 80);
+      return () => clearTimeout(timer);
+    }
+  }, [claimingTier]);
+
   // Computed state calculations
   const claimedLevels = new Set(credentials.map(c => c.tierLevel));
   if (onchainClaimed) {
@@ -906,16 +919,6 @@ export default function Home() {
     setClaimingTier(tier);
     setUgfStep('');
     setUgfError('');
-    
-    // Smooth scroll down to UGF console if mobile layout
-    if (window.innerWidth <= 768) {
-      const consoleEl = document.getElementById('ugf-console');
-      if (consoleEl) {
-        consoleEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } else {
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-      }
-    }
   }
 }
 
