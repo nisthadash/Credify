@@ -25,16 +25,8 @@ export default function ClaimPage() {
   const { address, isConnected } = useAccount();
   const navigate = useNavigate();
   const { checked, isEligible, eventTitle, eventId, loading: eligLoading } = useEligibility(address, isConnected);
-  const { ugfStep: realUgfStep, txDetails: realTxDetails, triggerClaim, isRunning: realIsRunning } = useUGFClaim();
+  const { ugfStep, txDetails, triggerClaim, isRunning } = useUGFClaim();
   const [modalOpen, setModalOpen] = useState(false);
-
-  // Local simulated claim states (used when not whitelisted on-chain)
-  const [simUgfStep, setSimUgfStep] = useState('');
-  const [isSimulating, setIsSimulating] = useState(false);
-
-  // Derive displayed step and running state
-  const ugfStep = isSimulating ? simUgfStep : realUgfStep;
-  const isRunning = isSimulating || realIsRunning;
 
   // On-chain owner and eligibility checks
   const signer = useEthersSigner();
@@ -117,58 +109,9 @@ export default function ClaimPage() {
     }
   }, [address, isConnected]);
 
-  // Simulated gasless claim flow (used when not whitelisted on-chain for demo purposes)
-  const runSimulatedClaim = async () => {
-    setIsSimulating(true);
-    setModalOpen(true);
-    try {
-      setSimUgfStep('quoting');
-      await new Promise(r => setTimeout(r, 1600));
-
-      setSimUgfStep('settling');
-      await new Promise(r => setTimeout(r, 1400));
-
-      setSimUgfStep('executing');
-      await new Promise(r => setTimeout(r, 1800));
-
-      setSimUgfStep('confirming');
-      const mockTxHash = '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-      const randomTokenId = Math.floor(Math.random() * 500) + 1;
-      const protocol = window.location.protocol;
-      const host = window.location.host;
-      const mockMetadata = `${protocol}//${host}/api/credentials/metadata/${address}/${eventId || '664cc56a7d7324a0d85485ab'}`;
-
-      await saveClaim({
-        tokenId: randomTokenId,
-        walletAddress: address,
-        eventId: eventId || '664cc56a7d7324a0d85485ab',
-        txHash: mockTxHash,
-        metadataUri: mockMetadata,
-        tierLevel: 0,
-      });
-
-      await new Promise(r => setTimeout(r, 1200));
-      setSimUgfStep('success');
-
-      setTimeout(() => {
-        setModalOpen(false);
-        setIsSimulating(false);
-        setSimUgfStep('');
-        navigate(`/success?tokenId=${randomTokenId}&txHash=${mockTxHash}&event=${encodeURIComponent(eventTitle || EVENT.name)}`);
-      }, 1200);
-    } catch (err) {
-      console.error('Simulated claim failed:', err);
-      setModalOpen(false);
-      setIsSimulating(false);
-      setSimUgfStep('');
-      alert('Gasless claim failed: ' + (err.message || err));
-    }
-  };
-
   const handleClaim = async () => {
-    // If wallet is not whitelisted on-chain, use the simulated flow
     if (!onchainEligible) {
-      await runSimulatedClaim();
+      alert('Your wallet is not whitelisted on-chain. Please contact the organizer.');
       return;
     }
     // Real UGF flow
@@ -261,6 +204,11 @@ export default function ClaimPage() {
                     Your wallet isn't on the whitelist for this event. Contact the organizer.
                   </p>
                 </div>
+              ) : checkingOnchain ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center', padding: '24px' }}>
+                  <Loader size="md" />
+                  <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Checking on-chain status…</span>
+                </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   {/* Onchain Whitelist Warning for Smart Contract Owner */}
@@ -305,13 +253,21 @@ export default function ClaimPage() {
                   <button
                     id="claim-pass-btn"
                     onClick={handleClaim}
-                    disabled={isRunning}
+                    disabled={isRunning || !onchainEligible}
                     className="btn btn-primary btn-full"
-                    style={{ height: '48px', fontSize: '15px', gap: '10px' }}
+                    style={{ 
+                      height: '48px', 
+                      fontSize: '15px', 
+                      gap: '10px',
+                      opacity: (!onchainEligible && !isRunning) ? 0.55 : 1,
+                      cursor: (!onchainEligible && !isRunning) ? 'not-allowed' : 'pointer'
+                    }}
                   >
                     {isRunning
                       ? <><Loader size="sm" style={{ border: '2px solid rgba(255,255,255,0.25)', borderTopColor: '#fff' }} /> Processing…</>
-                      : <>Claim Gasless Event Pass <ArrowRight size={17} /></>
+                      : !onchainEligible
+                        ? <>Not Whitelisted On-Chain</>
+                        : <>Claim Gasless Event Pass <ArrowRight size={17} /></>
                     }
                   </button>
                   <p style={{ fontSize: '12px', color: 'var(--text-subtle)', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>

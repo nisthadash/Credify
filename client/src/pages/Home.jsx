@@ -114,7 +114,6 @@ export default function Home() {
     }
   }, [address, isConnected]);
   const [loadingCredentials, setLoadingCredentials] = useState(false);
-  const [simulateApproval, setSimulateApproval] = useState(false);
 
   // UGF Gasless Claiming States
   const [claimingTier, setClaimingTier] = useState(null); // tier level object being claimed/upgraded
@@ -166,7 +165,6 @@ export default function Home() {
       setUgfStep('');
       setUgfError('');
       setClaimingTier(null);
-      setSimulateApproval(false);
       resetRealUgf();
     }
   }, [isConnected, address]);
@@ -186,108 +184,44 @@ export default function Home() {
       return 'claimed';
     }
     
-    // Level 0 is eligible if connected, and standard eligibility or simulator is on
+    // Level 0 is eligible if connected, and standard eligibility check is met
     if (level === 0) {
-      if (highestClaimedLevel === -1 && (isEligible || simulateApproval)) {
+      if (highestClaimedLevel === -1 && isEligible) {
         return 'eligible';
       }
       return highestClaimedLevel >= 0 ? 'locked-prereq' : 'locked';
     }
 
-    // For level > 0, it is eligible if the previous level is claimed and simulator is on (approving next tier)
+    // For level > 0, it is eligible if the previous level is claimed
     if (level === highestClaimedLevel + 1) {
-      if (simulateApproval) {
-        return 'eligible';
-      }
       return 'awaiting-approval';
     }
 
     return 'locked';
   };
 
-  // UGF Gasless Minting Simulator
   const triggerUgfClaim = async () => {
     if (claimingTier === null) return;
     setUgfError('');
     
-    if (claimingTier.level === 0 && onchainEligible) {
+    if (claimingTier.level === 0) {
+      if (!onchainEligible) {
+        setUgfError('Your wallet is not whitelisted on-chain. Please whitelist it using the helper tools below.');
+        return;
+      }
       try {
         // Real UGF flow
         await triggerClaim(address, eventId || '664cc56a7d7324a0d85485ab', 0);
         // Reload credentials
         await loadCredentials();
-        setSimulateApproval(false);
       } catch (err) {
         console.error('Real UGF claim failed:', err);
         setUgfError(err.message || 'Real UGF claim failed');
         setUgfStep('');
       }
     } else {
-      // Simulated UGF flow for level > 0 OR when user is not whitelisted on-chain (so they can still demo)
-      // Step 1: Quote (Calculates gas in Mock USD)
-      setUgfStep('quoting');
-      await new Promise(r => setTimeout(r, 1800));
-
-      // Step 2: Settle (Approve payment in Mock USD)
-      setUgfStep('settling');
-      await new Promise(r => setTimeout(r, 1600));
-
-      // Step 3: Execute (UGF pays ETH gas and executes contract)
-      setUgfStep('executing');
-      await new Promise(r => setTimeout(r, 2000));
-
-      // Step 4: Confirm (Block is finalized, mint is confirmed onchain)
-      setUgfStep('confirming');
-      
-      try {
-        const mockTxHash = '0x' + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join('');
-        const randomTokenId = Math.floor(Math.random() * 500) + 1;
-        const protocol = window.location.protocol;
-        const host = window.location.host;
-        const mockMetadata = `${protocol}//${host}/api/credentials/metadata/${address}/event-tier-${claimingTier.level}`;
-
-        // Save claim through standardized credential service
-        await saveClaim({
-          tokenId: randomTokenId,
-          walletAddress: address,
-          eventId: '664cc56a7d7324a0d85485ab', // Standard identifier
-          txHash: mockTxHash,
-          metadataUri: mockMetadata,
-          tierLevel: claimingTier.level
-        });
-
-        setTxDetails({
-          tokenId: randomTokenId,
-          txHash: mockTxHash,
-          tier: claimingTier.name,
-          metadataUri: mockMetadata
-        });
-        
-        await new Promise(r => setTimeout(r, 1200));
-        setUgfStep('success');
-
-        // Reload claimed credentials immediately to update UI status
-        await loadCredentials();
-        
-        // Turn off simulator approval so they have to toggle it again for the next level
-        setSimulateApproval(false);
-      } catch (err) {
-        console.error('Simulated UGF claim failed:', err);
-        setUgfError(err.message || 'Simulated UGF claim failed');
-        setUgfStep('');
-      }
+      setUgfError('Only Tier 0 (Event Pass) can be claimed by participants. Higher tiers must be upgraded by the event organizer.');
     }
-  };
-
-  const handleResetDemo = () => {
-    localStorage.removeItem('credify_credentials');
-    setCredentials([]);
-    setSimulateApproval(false);
-    setClaimingTier(null);
-    setUgfStep('');
-    setUgfError('');
-    resetRealUgf();
-    alert('Demo reset successfully! All mock credentials have been cleared.');
   };
 
   // Find info about the credential of a claimed tier
@@ -659,16 +593,39 @@ export default function Home() {
                 {ugfStep === '' && (
                   <div>
                     <div className="info-note" style={{ marginBottom: '16px' }}>
-                      {claimingTier.level === 0 && !onchainEligible ? (
-                        <>
-                          <strong>Simulation Mode:</strong> Since your wallet is not whitelisted on-chain, we are running in simulated gasless claim mode. Whitelist your wallet using Owner helper tools to run the real UGF flow.
-                        </>
-                      ) : (
-                        <>
-                          <strong>Gasless Abstraction:</strong> The Universal Gas Framework pays the required network gas fee on Base Sepolia. The interaction costs 0.15 Mock USD settled directly from your event credit account.
-                        </>
-                      )}
+                      <strong>Gasless Abstraction:</strong> The Universal Gas Framework pays the required network gas fee on Base Sepolia. The interaction costs 0.15 Mock USD settled directly from your event credit account.
                     </div>
+                    
+                    {!onchainEligible && claimingTier.level === 0 && (
+                      <div className="error-note" style={{ 
+                        background: 'rgba(239, 68, 68, 0.08)',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        color: '#ff8a8a',
+                        padding: '12px',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: '0.85rem',
+                        lineHeight: 1.4,
+                        marginBottom: '16px'
+                      }}>
+                        <strong>Warning:</strong> Your wallet is not whitelisted on-chain yet. You can use the Owner Helper tools below to whitelist your wallet on-chain before executing this transaction.
+                      </div>
+                    )}
+
+                    {claimingTier.level > 0 && (
+                      <div className="info-note" style={{ 
+                        background: 'rgba(59, 130, 246, 0.08)',
+                        border: '1px solid rgba(59, 130, 246, 0.25)',
+                        color: '#93c5fd',
+                        padding: '12px',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: '0.85rem',
+                        lineHeight: 1.4,
+                        marginBottom: '16px'
+                      }}>
+                        <strong>Info:</strong> Only Tier 0 passes can be claimed directly by users. Higher tiers must be upgraded onchain by the event organizer.
+                      </div>
+                    )}
+
                     {ugfError && (
                       <div className="error-note" style={{ 
                         background: 'rgba(239, 68, 68, 0.08)',
@@ -689,10 +646,22 @@ export default function Home() {
                     )}
                     <button 
                       onClick={triggerUgfClaim} 
+                      disabled={!onchainEligible || claimingTier.level > 0}
                       className="btn btn-full btn-primary animate-pop-in"
-                      style={{ background: claimingTier.color, color: '#000', fontWeight: 700 }}
+                      style={{ 
+                        background: claimingTier.color, 
+                        color: '#000', 
+                        fontWeight: 700,
+                        opacity: (!onchainEligible || claimingTier.level > 0) ? 0.55 : 1,
+                        cursor: (!onchainEligible || claimingTier.level > 0) ? 'not-allowed' : 'pointer'
+                      }}
                     >
-                      Execute Gasless Transaction
+                      {!onchainEligible && claimingTier.level === 0
+                        ? 'Not Whitelisted On-Chain' 
+                        : claimingTier.level > 0 
+                          ? 'Organizer Upgrade Required' 
+                          : 'Execute Gasless Transaction'
+                      }
                     </button>
                   </div>
                 )}
@@ -813,18 +782,17 @@ export default function Home() {
             )}
           </div>
 
-          {/* Demo operator controls for hackathon judges */}
-          <div className="glass-panel" style={{ padding: '24px', border: '1px dashed rgba(255, 255, 255, 0.15)' }}>
-            <h3 style={{ fontSize: '1.2rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Sliders size={18} style={{ color: 'var(--primary)' }} /> Demo Helper Controls
-            </h3>
-            <p style={{ color: 'var(--text-subtle)', fontSize: '0.8rem', lineHeight: 1.4, marginBottom: '16px' }}>
-              Simulate hackathon stage updates to review the progression logic instantly without swapping tabs.
-            </p>
+          {/* Developer helper controls for contract owner */}
+          {isConnected && contractOwner && address && address.toLowerCase() === contractOwner.toLowerCase() && (
+            <div className="glass-panel" style={{ padding: '24px', border: '1px dashed rgba(255, 255, 255, 0.15)' }}>
+              <h3 style={{ fontSize: '1.2rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Sliders size={18} style={{ color: 'var(--primary)' }} /> Developer Tools
+              </h3>
+              <p style={{ color: 'var(--text-subtle)', fontSize: '0.8rem', lineHeight: 1.4, marginBottom: '16px' }}>
+                Manage on-chain whitelist status for your connected owner wallet.
+              </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {/* Onchain Whitelist Control for Smart Contract Owner */}
-              {isConnected && contractOwner && address && address.toLowerCase() === contractOwner.toLowerCase() && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div style={{ 
                   display: 'flex', 
                   flexDirection: 'column', 
@@ -863,39 +831,9 @@ export default function Home() {
                     )}
                   </div>
                 </div>
-              )}
-
-              {isConnected && highestClaimedLevel < 4 && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(255,255,255,0.04)' }}>
-                  <div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>Approve Stage Upgrade</div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>Unlock: {TIERS[highestClaimedLevel + 1]?.name}</div>
-                  </div>
-                  <button 
-                    onClick={() => setSimulateApproval(!simulateApproval)}
-                    className="btn btn-sm"
-                    style={{ 
-                      background: simulateApproval ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255,255,255,0.05)',
-                      border: simulateApproval ? '1px solid var(--success)' : '1px solid rgba(255,255,255,0.1)',
-                      color: simulateApproval ? 'var(--success)' : 'var(--text-muted)',
-                      fontWeight: 600
-                    }}
-                  >
-                    {simulateApproval ? 'Approved' : 'Approve'}
-                  </button>
-                </div>
-              )}
-
-              <button 
-                onClick={handleResetDemo}
-                className="btn btn-sm btn-ghost btn-full"
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-              >
-                <RefreshCw size={12} />
-                Reset Demo Progression
-              </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
