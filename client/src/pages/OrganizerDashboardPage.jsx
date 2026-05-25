@@ -67,6 +67,31 @@ export default function OrganizerDashboardPage() {
   const [upgradingWallet, setUpgradingWallet] = useState(null); // wallet address being upgraded
   const [isRevokingWallet, setIsRevokingWallet] = useState(null);
 
+  const canWriteOnchain = Boolean(
+    signer &&
+    connectedAddress &&
+    contractOwner &&
+    connectedAddress.toLowerCase() === contractOwner.toLowerCase()
+  );
+
+  const syncWhitelistOnchain = async (wallets) => {
+    if (!canWriteOnchain) {
+      return { synced: false, reason: 'owner-not-connected' };
+    }
+
+    const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
+
+    if (wallets.length === 1) {
+      const tx = await contract.addEligible(wallets[0]);
+      await tx.wait();
+      return { synced: true };
+    }
+
+    const tx = await contract.addEligibleBulk(wallets);
+    await tx.wait();
+    return { synced: true };
+  };
+
   const checkContractOwner = async () => {
     setCheckingOwner(true);
     try {
@@ -192,16 +217,27 @@ export default function OrganizerDashboardPage() {
   const handleWhitelist = async (e) => {
     e.preventDefault();
     if (!whitelistAddress || !activeEvent) return;
+    const cleanAddress = whitelistAddress.trim();
     try {
       const data = await apiFetch('/eligible', {
         method: 'POST',
         body: JSON.stringify({
-          walletAddress: whitelistAddress.trim(),
+          walletAddress: cleanAddress,
           eventId: activeEvent._id
         })
       });
       if (data && data.success) {
-        showToast('Wallet whitelisted successfully!');
+        try {
+          const onchain = await syncWhitelistOnchain([cleanAddress]);
+          showToast(
+            onchain.synced
+              ? 'Wallet whitelisted in database and on-chain!'
+              : 'Wallet whitelisted in database. Connect the contract owner wallet to sync on-chain.'
+          );
+        } catch (chainErr) {
+          console.error('On-chain whitelist sync failed:', chainErr);
+          showToast('Wallet saved in database, but on-chain sync failed. Check wallet/network.');
+        }
         setWhitelistAddress('');
         setShowWhitelist(false);
         loadParticipants(activeEvent._id);
@@ -248,7 +284,17 @@ export default function OrganizerDashboardPage() {
         });
 
         if (data && data.success) {
-          showToast(`Successfully whitelisted ${validWallets.length} addresses!`);
+          try {
+            const onchain = await syncWhitelistOnchain(validWallets);
+            showToast(
+              onchain.synced
+                ? `Whitelisted ${validWallets.length} addresses in database and on-chain!`
+                : `Whitelisted ${validWallets.length} addresses in database. Connect the contract owner wallet to sync on-chain.`
+            );
+          } catch (chainErr) {
+            console.error('Bulk on-chain whitelist sync failed:', chainErr);
+            showToast(`Whitelisted ${validWallets.length} addresses in database, but on-chain sync failed.`);
+          }
           setShowWhitelist(false);
           loadParticipants(activeEvent._id);
         } else {
@@ -332,8 +378,7 @@ export default function OrganizerDashboardPage() {
       console.log(`[On-chain Upgrade] Upgrading wallet ${participant.walletAddress} to tier ${nextTier} with URI ${metadataUri}`);
       
       showToast(`Please confirm the upgrade to ${TIER_NAMES[nextTier]} in your wallet...`);
-      const eventIdBigInt = BigInt('0x' + activeEvent._id);
-      const tx = await contract.upgradeTier(participant.walletAddress, eventIdBigInt, nextTier, metadataUri);
+      const tx = await contract.upgradeTier(participant.walletAddress, nextTier, metadataUri);
       console.log('[On-chain Upgrade] Transaction sent:', tx.hash);
       
       showToast(`Transaction sent! Waiting for block confirmation...`);

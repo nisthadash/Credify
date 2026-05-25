@@ -4,11 +4,6 @@ export const ABI = [
   {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "eventId",
-        "type": "uint256"
-      },
-      {
         "internalType": "string",
         "name": "tokenURI",
         "type": "string"
@@ -25,11 +20,6 @@ export const ABI = [
         "internalType": "address",
         "name": "user",
         "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "eventId",
-        "type": "uint256"
       }
     ],
     "name": "getCredential",
@@ -59,11 +49,6 @@ export const ABI = [
         "internalType": "address",
         "name": "user",
         "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "eventId",
-        "type": "uint256"
       }
     ],
     "name": "isEligible",
@@ -96,11 +81,6 @@ export const ABI = [
         "internalType": "address",
         "name": "user",
         "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "eventId",
-        "type": "uint256"
       }
     ],
     "name": "addEligible",
@@ -114,11 +94,6 @@ export const ABI = [
         "internalType": "address",
         "name": "user",
         "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "eventId",
-        "type": "uint256"
       },
       {
         "internalType": "uint8",
@@ -142,11 +117,6 @@ export const ABI = [
         "internalType": "address[]",
         "name": "users",
         "type": "address[]"
-      },
-      {
-        "internalType": "uint256",
-        "name": "eventId",
-        "type": "uint256"
       }
     ],
     "name": "addEligibleBulk",

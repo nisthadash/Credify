@@ -21,6 +21,7 @@ const checkEligibility = async (req, res, next) => {
       return response.success(res, {
         walletAddress: wallet,
         eventId,
+        eventTitle: 'Credify Demo Event',
         isEligible: true
       }, 'Wallet is eligible (Demo Mode)');
     }
@@ -35,9 +36,14 @@ const checkEligibility = async (req, res, next) => {
       return response.success(res, {
         walletAddress: wallet,
         eventId,
+        eventTitle: 'Credify Event (Fallback Mode)',
         isEligible: true
       }, 'Wallet is eligible (Fallback Mode)');
     }
+
+    // Fetch event to include its title in response
+    const event = await Event.findById(eventId);
+    const eventTitle = event ? event.title : '';
 
     const check = await Eligibility.findOne({
       walletAddress: wallet.toLowerCase(),
@@ -63,6 +69,7 @@ const checkEligibility = async (req, res, next) => {
     return response.success(res, {
       walletAddress: wallet,
       eventId,
+      eventTitle,
       isEligible
     }, isEligible ? 'Wallet is eligible' : 'Wallet is not eligible');
   } catch (error) {

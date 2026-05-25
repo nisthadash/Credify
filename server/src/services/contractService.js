@@ -10,11 +10,6 @@ const ABI = [
         "name": "user",
         "type": "address"
       },
-      {
-        "internalType": "uint256",
-        "name": "eventId",
-        "type": "uint256"
-      }
     ],
     "name": "getCredential",
     "outputs": [
@@ -142,19 +137,13 @@ const getOnchainCredential = async (walletAddress, eventId) => {
   try {
     const client = getPublicClient();
     
-    let eventIdBigInt = 0n;
-    if (eventId && eventId.length === 24) {
-      eventIdBigInt = BigInt('0x' + eventId);
-    } else if (eventId && eventId.startsWith('0x')) {
-      eventIdBigInt = BigInt(eventId);
-    }
-
-    // Call contract getCredential(address, eventId)
+    // Current deployed CredifyBadge is wallet-scoped onchain. The eventId is
+    // still used by MongoDB records, but not by this deployed contract ABI.
     const result = await client.readContract({
       address: contractAddress,
       abi: ABI,
       functionName: 'getCredential',
-      args: [walletAddress, eventIdBigInt]
+      args: [walletAddress]
     });
 
     return {

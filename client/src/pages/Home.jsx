@@ -89,13 +89,11 @@ export default function Home() {
       });
       setContractOwner(ownerAddress);
 
-      const eventIdBigInt = BigInt('0x' + selectedEventId);
-
       const isUserEligible = await publicClient.readContract({
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'isEligible',
-        args: [address, eventIdBigInt]
+        args: [address]
       });
       setOnchainEligible(isUserEligible);
 
@@ -103,7 +101,7 @@ export default function Home() {
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'getCredential',
-        args: [address, eventIdBigInt]
+        args: [address]
       });
       setOnchainClaimed(credentialInfo[2]); // Third index is claimed (bool)
       console.log('[Onchain Check] Owner:', ownerAddress, 'User:', address, 'Eligible:', isUserEligible, 'Claimed:', credentialInfo[2]);
@@ -119,9 +117,8 @@ export default function Home() {
     setWhitelisting(true);
     try {
       const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
-      const eventIdBigInt = BigInt('0x' + selectedEventId);
       console.log('[Onchain Whitelist] Sending addEligible transaction for:', address, 'event:', selectedEventId);
-      const tx = await contract.addEligible(address, eventIdBigInt);
+      const tx = await contract.addEligible(address);
       console.log('[Onchain Whitelist] Transaction sent:', tx.hash);
       
       // Wait for 1 confirmation

@@ -67,13 +67,11 @@ export default function ClaimPage() {
       });
       setContractOwner(ownerAddress);
 
-      const eventIdBigInt = BigInt('0x' + eventId);
-
       const isUserEligible = await publicClient.readContract({
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'isEligible',
-        args: [address, eventIdBigInt]
+        args: [address]
       });
       setOnchainEligible(isUserEligible);
 
@@ -81,7 +79,7 @@ export default function ClaimPage() {
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'getCredential',
-        args: [address, eventIdBigInt]
+        args: [address]
       });
       setOnchainClaimed(credentialInfo[2]); // Third index is claimed (bool)
       console.log('[ClaimPage Onchain Check] Owner:', ownerAddress, 'User:', address, 'Eligible:', isUserEligible, 'Claimed:', credentialInfo[2]);
@@ -97,9 +95,8 @@ export default function ClaimPage() {
     setWhitelisting(true);
     try {
       const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
-      const eventIdBigInt = BigInt('0x' + eventId);
       console.log('[ClaimPage Onchain Whitelist] Sending addEligible transaction for:', address, 'event:', eventId);
-      const tx = await contract.addEligible(address, eventIdBigInt);
+      const tx = await contract.addEligible(address);
       console.log('[ClaimPage Onchain Whitelist] Transaction sent:', tx.hash);
       
       // Wait for 1 confirmation
@@ -192,6 +189,13 @@ export default function ClaimPage() {
                       : <span className="chip chip-not-eligible" style={{ fontSize: '11px' }}><span className="chip-dot" /> Not Eligible</span>
                   } />
                 )}
+                {isConnected && checked && isEligible && !checkingOnchain && (
+                  <Row label="On-chain Whitelist" value={
+                    onchainEligible
+                      ? <span className="chip chip-eligible" style={{ fontSize: '11px' }}><span className="chip-dot" /> Synced</span>
+                      : <span className="chip chip-not-eligible" style={{ fontSize: '11px' }}><span className="chip-dot" /> Not Synced</span>
+                  } />
+                )}
               </div>
             </div>
 
@@ -238,6 +242,25 @@ export default function ClaimPage() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {isEligible && !onchainEligible && (
+                    <div style={{ 
+                      padding: '12px 14px', 
+                      background: 'rgba(245, 158, 11, 0.08)', 
+                      borderRadius: 'var(--radius-md)', 
+                      border: '1px solid rgba(245, 158, 11, 0.25)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px'
+                    }}>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', color: '#fbbf24' }}>
+                        <ShieldAlert size={14} /> Database Whitelisted, On-chain Pending
+                      </div>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', lineHeight: 1.4 }}>
+                        The organizer dashboard has approved this wallet, but the smart contract whitelist has not been synced yet. Ask the contract owner to whitelist this wallet on-chain before claiming.
+                      </p>
+                    </div>
+                  )}
+
                   {/* Onchain Whitelist Warning for Smart Contract Owner */}
                   {contractOwner && address && address.toLowerCase() === contractOwner.toLowerCase() && !onchainEligible && (
                     <div style={{ 

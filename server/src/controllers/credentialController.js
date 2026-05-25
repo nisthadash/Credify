@@ -479,16 +479,16 @@ const getUserCredentials = async (req, res, next) => {
     const credentials = await Credential.find({ walletAddress: walletLower })
       .populate('eventId', 'title description date');
 
-    // On-chain reconciliation: check if the user has claimed onchain but not in our database
+    // On-chain reconciliation: the deployed contract is wallet-scoped (getCredential takes only address).
+    // We call it ONCE per wallet — not once per event — to avoid N contract reverts.
+    // Only reconcile if the user has no DB credentials at all (they claimed onchain but never saved to DB).
     const contractService = require('../services/contractService');
-    const allEvents = await Event.find();
 
-    for (const ev of allEvents) {
-      const onchainInfo = await contractService.getOnchainCredential(walletLower, ev._id.toString());
-      if (onchainInfo && onchainInfo.hasClaimed) {
-        const hasOnchainInDb = credentials.some(c => Number(c.tokenId) === Number(onchainInfo.tokenId));
-        if (!hasOnchainInDb) {
-          console.log(`[getUserCredentials] Reconciling on-chain credential for ${walletLower} on event ${ev.title}.`);
+    if (credentials.length === 0) {
+      try {
+        const onchainInfo = await contractService.getOnchainCredential(walletLower);
+        if (onchainInfo && onchainInfo.hasClaimed && !onchainInfo.isMock) {
+          console.log(`[getUserCredentials] No DB creds found. Reconciling on-chain credential for ${walletLower}.`);
           const tokenURI = await contractService.getOnchainTokenUri(onchainInfo.tokenId);
           
           const TIER_NAMES = {
@@ -500,25 +500,30 @@ const getUserCredentials = async (req, res, next) => {
           };
           const tierName = TIER_NAMES[onchainInfo.tier] || 'event pass';
 
-          try {
-            const newCred = await Credential.create({
-              tokenId: onchainInfo.tokenId,
-              walletAddress: walletLower,
-              eventId: ev._id,
-              tier: tierName,
-              metadataUri: tokenURI || `https://mock-rpc-node/metadata/${walletLower}`,
-              txHash: 'onchain-reconciled',
-              status: onchainInfo.tier > 0 ? 'upgraded' : 'minted'
-            });
-            
-            const populatedCred = await Credential.findById(newCred._id)
-              .populate('eventId', 'title description date');
-            
-            credentials.push(populatedCred);
-          } catch (dbErr) {
-            console.error('[getUserCredentials] Failed to auto-save missing on-chain credential:', dbErr.message);
+          // Find first available event to associate — fallback to a synthetic record
+          const fallbackEvent = await Event.findOne().sort({ createdAt: -1 });
+          if (fallbackEvent) {
+            try {
+              const newCred = await Credential.create({
+                tokenId: onchainInfo.tokenId,
+                walletAddress: walletLower,
+                eventId: fallbackEvent._id,
+                tier: tierName,
+                metadataUri: tokenURI || `https://mock-rpc-node/metadata/${walletLower}`,
+                txHash: 'onchain-reconciled',
+                status: onchainInfo.tier > 0 ? 'upgraded' : 'minted'
+              });
+              const populatedCred = await Credential.findById(newCred._id)
+                .populate('eventId', 'title description date');
+              credentials.push(populatedCred);
+            } catch (dbErr) {
+              console.error('[getUserCredentials] Failed to auto-save missing on-chain credential:', dbErr.message);
+            }
           }
         }
+      } catch (chainErr) {
+        // Non-fatal: contract may not have this user. Skip reconciliation.
+        console.warn('[getUserCredentials] Onchain reconciliation skipped:', chainErr.message);
       }
     }
 
