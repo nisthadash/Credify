@@ -97,9 +97,9 @@ const claimInit = async (req, res, next) => {
 
     // Check if already claimed on-chain and reconcile database
     const contractService = require('../services/contractService');
-    const onchainInfo = await contractService.getOnchainCredential(walletLower);
+    const onchainInfo = await contractService.getOnchainCredential(walletLower, eventId);
     if (onchainInfo && onchainInfo.hasClaimed) {
-      console.log(`[ClaimInit] Wallet ${walletLower} already claimed onchain. Reconciling database.`);
+      console.log(`[ClaimInit] Wallet ${walletLower} already claimed onchain for event ${eventId}. Reconciling database.`);
       try {
         const tokenURI = await contractService.getOnchainTokenUri(onchainInfo.tokenId);
         const TIER_NAMES = {
@@ -357,20 +357,31 @@ const getMetadata = async (req, res, next) => {
     const credential = await Credential.findOne({ walletAddress: walletLower, eventId });
     
     let activeTierInt = 0;
+    let isRevoked = false;
+    let expiresAt = null;
     if (credential) {
       // Find matching tier level number
       const matched = Object.entries(TIER_DETAILS).find(
         ([_, detail]) => detail.name.toLowerCase() === credential.tier
       );
       activeTierInt = matched ? Number(matched[0]) : 0;
+      isRevoked = credential.isRevoked || false;
+      expiresAt = credential.expiresAt || null;
     }
 
     const details = TIER_DETAILS[activeTierInt] || TIER_DETAILS[0];
+    
+    // Check if the credential is expired
+    const isExpired = expiresAt ? new Date(expiresAt) < new Date() : false;
 
     // standard Opensea/ERC-721 metadata structure
     const metadata = {
-      name: `Credify ${details.name} - ${event.title}`,
-      description: `${details.description} Verified onchain via Credify gasless framework.`,
+      name: `${isRevoked ? '[REVOKED] ' : isExpired ? '[EXPIRED] ' : ''}Credify ${details.name} - ${event.title}`,
+      description: isRevoked 
+        ? `THIS CREDENTIAL HAS BEEN REVOKED BY THE ORGANIZER. Formerly: ${details.description}`
+        : isExpired
+          ? `THIS CREDENTIAL HAS EXPIRED. Formerly: ${details.description}`
+          : `${details.description} Verified onchain via Credify gasless framework.`,
       image: details.image,
       external_url: `https://credify.network/verify/${walletLower}`,
       attributes: [
@@ -390,9 +401,21 @@ const getMetadata = async (req, res, next) => {
         {
           trait_type: 'Recipient Wallet',
           value: walletLower
+        },
+        {
+          trait_type: 'Status',
+          value: isRevoked ? 'Revoked' : isExpired ? 'Expired' : 'Active'
         }
       ]
     };
+
+    if (expiresAt) {
+      metadata.attributes.push({
+        display_type: 'date',
+        trait_type: 'Expiration Date',
+        value: Math.floor(new Date(expiresAt).getTime() / 1000)
+      });
+    }
 
     return res.status(200).json(metadata);
   } catch (error) {
@@ -458,60 +481,43 @@ const getUserCredentials = async (req, res, next) => {
 
     // On-chain reconciliation: check if the user has claimed onchain but not in our database
     const contractService = require('../services/contractService');
-    const onchainInfo = await contractService.getOnchainCredential(walletLower);
+    const allEvents = await Event.find();
 
-    if (onchainInfo && onchainInfo.hasClaimed) {
-      const hasOnchainInDb = credentials.some(c => Number(c.tokenId) === Number(onchainInfo.tokenId));
-      if (!hasOnchainInDb) {
-        console.log(`[getUserCredentials] Reconciling on-chain credential for ${walletLower}. Onchain TokenId: ${onchainInfo.tokenId}`);
-        
-        // Find the latest event to associate it with
-        const latestEvent = await Event.findOne().sort({ createdAt: -1 });
-        const eventId = latestEvent ? latestEvent._id : new mongoose.Types.ObjectId('664cc56a7d7324a0d85485ab');
-        
-        const tokenURI = await contractService.getOnchainTokenUri(onchainInfo.tokenId);
-        
-        const TIER_NAMES = {
-          0: 'event pass',
-          1: 'participant badge',
-          2: 'finalist badge',
-          3: 'winner certificate',
-          4: 'mentor badge'
-        };
-        const tierName = TIER_NAMES[onchainInfo.tier] || 'event pass';
+    for (const ev of allEvents) {
+      const onchainInfo = await contractService.getOnchainCredential(walletLower, ev._id.toString());
+      if (onchainInfo && onchainInfo.hasClaimed) {
+        const hasOnchainInDb = credentials.some(c => Number(c.tokenId) === Number(onchainInfo.tokenId));
+        if (!hasOnchainInDb) {
+          console.log(`[getUserCredentials] Reconciling on-chain credential for ${walletLower} on event ${ev.title}.`);
+          const tokenURI = await contractService.getOnchainTokenUri(onchainInfo.tokenId);
+          
+          const TIER_NAMES = {
+            0: 'event pass',
+            1: 'participant badge',
+            2: 'finalist badge',
+            3: 'winner certificate',
+            4: 'mentor badge'
+          };
+          const tierName = TIER_NAMES[onchainInfo.tier] || 'event pass';
 
-        try {
-          const newCred = await Credential.create({
-            tokenId: onchainInfo.tokenId,
-            walletAddress: walletLower,
-            eventId,
-            tier: tierName,
-            metadataUri: tokenURI || `https://mock-rpc-node/metadata/${walletLower}`,
-            txHash: 'onchain-reconciled',
-            status: onchainInfo.tier > 0 ? 'upgraded' : 'minted'
-          });
-          
-          const populatedCred = await Credential.findById(newCred._id)
-            .populate('eventId', 'title description date');
-          
-          credentials.push(populatedCred);
-        } catch (dbErr) {
-          console.error('[getUserCredentials] Failed to auto-save missing on-chain credential:', dbErr.message);
-          
-          credentials.push({
-            tokenId: onchainInfo.tokenId,
-            walletAddress: walletLower,
-            eventId: latestEvent || {
-              _id: eventId,
-              title: 'Credify Base Sepolia Workshop (Reconciled)',
-              description: 'Onchain credential synchronized automatically.',
-              date: new Date()
-            },
-            tier: tierName,
-            metadataUri: tokenURI || `https://mock-rpc-node/metadata/${walletLower}`,
-            txHash: 'onchain-reconciled',
-            status: onchainInfo.tier > 0 ? 'upgraded' : 'minted'
-          });
+          try {
+            const newCred = await Credential.create({
+              tokenId: onchainInfo.tokenId,
+              walletAddress: walletLower,
+              eventId: ev._id,
+              tier: tierName,
+              metadataUri: tokenURI || `https://mock-rpc-node/metadata/${walletLower}`,
+              txHash: 'onchain-reconciled',
+              status: onchainInfo.tier > 0 ? 'upgraded' : 'minted'
+            });
+            
+            const populatedCred = await Credential.findById(newCred._id)
+              .populate('eventId', 'title description date');
+            
+            credentials.push(populatedCred);
+          } catch (dbErr) {
+            console.error('[getUserCredentials] Failed to auto-save missing on-chain credential:', dbErr.message);
+          }
         }
       }
     }
@@ -530,10 +536,56 @@ const getUserCredentials = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Revoke a credential (organizer only)
+ * @route   POST /api/credentials/revoke
+ * @access  Private (Organizer only)
+ */
+const revokeCredential = async (req, res, next) => {
+  try {
+    const { tokenId } = req.body;
+
+    if (tokenId === undefined) {
+      return response.error(res, 'Please provide tokenId', 400);
+    }
+
+    // Offline database fallback
+    if (mongoose.connection.readyState !== 1) {
+      return response.error(res, 'Database offline: Cannot revoke credential', 503);
+    }
+
+    const credential = await Credential.findOne({ tokenId: Number(tokenId) });
+    if (!credential) {
+      return response.error(res, 'Credential not found', 404);
+    }
+
+    // Verify that user has organizer rights to the event
+    const event = await Event.findById(credential.eventId);
+    if (!event) {
+      return response.error(res, 'Event linked to this credential not found', 404);
+    }
+
+    if (event.organizerId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return response.error(res, 'Not authorized to revoke credentials for this event', 403);
+    }
+
+    // Update credential state
+    credential.isRevoked = true;
+    credential.status = 'revoked';
+    
+    await credential.save();
+
+    return response.success(res, credential, 'Credential successfully revoked');
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   claimInit,
   saveCredential,
   upgradeCredential,
   getMetadata,
-  getUserCredentials
+  getUserCredentials,
+  revokeCredential
 };

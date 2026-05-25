@@ -1,8 +1,13 @@
-export const CONTRACT_ADDRESS = '0x1A05f3c095eB6bc6c9c0C4E4b17219751ab53a49';
+export const CONTRACT_ADDRESS = '0x7A2358C33F757Db5d67f742550EAD1590025E210';
 
 export const ABI = [
   {
     "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "eventId",
+        "type": "uint256"
+      },
       {
         "internalType": "string",
         "name": "tokenURI",
@@ -20,6 +25,11 @@ export const ABI = [
         "internalType": "address",
         "name": "user",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "eventId",
+        "type": "uint256"
       }
     ],
     "name": "getCredential",
@@ -49,6 +59,11 @@ export const ABI = [
         "internalType": "address",
         "name": "user",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "eventId",
+        "type": "uint256"
       }
     ],
     "name": "isEligible",
@@ -81,12 +96,62 @@ export const ABI = [
         "internalType": "address",
         "name": "user",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "eventId",
+        "type": "uint256"
       }
     ],
     "name": "addEligible",
     "outputs": [],
     "stateMutability": "external",
     "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "eventId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint8",
+        "name": "tier",
+        "type": "uint8"
+      },
+      {
+        "internalType": "string",
+        "name": "uri",
+        "type": "string"
+      }
+    ],
+    "name": "upgradeTier",
+    "outputs": [],
+    "stateMutability": "external",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "users",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256",
+        "name": "eventId",
+        "type": "uint256"
+      }
+    ],
+    "name": "addEligibleBulk",
+    "outputs": [],
+    "stateMutability": "external",
+    "type": "function"
   }
 ];
-

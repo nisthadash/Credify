@@ -3,7 +3,7 @@ import { useAccount, useChainId } from 'wagmi';
 import { CheckCircle2, ShieldAlert, Award, Star, Flame, Compass, ChevronRight, Share2, ExternalLink, Lock, Unlock, Sparkles, RefreshCw, Zap, Info, Trophy, Sliders, Check } from 'lucide-react';
 import { useEligibility } from '../hooks/useEligibility.js';
 import { useUGFClaim } from '../hooks/useUGFClaim.js';
-import { saveClaim, getCredentialsByWallet } from '../services/credentialService.js';
+import { saveClaim, getCredentialsByWallet, getEvents } from '../services/credentialService.js';
 import { createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { Contract } from 'ethers';
@@ -30,6 +30,14 @@ export default function Home() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
 
+  // State for events listing
+  const [events, setEvents] = useState([]);
+  const [selectedEventId, setSelectedEventId] = useState(null);
+  const [loadingEvents, setLoadingEvents] = useState(false);
+
+  // Standard eligibility check for Event Pass (Tier 0)
+  const { checked, isEligible, eventTitle, eventId, loading: loadingEligibility } = useEligibility(address, isConnected, selectedEventId);
+
   // Load actual claimed credentials
   const [credentials, setCredentials] = useState([]);
 
@@ -41,8 +49,32 @@ export default function Home() {
   const [checkingOnchain, setCheckingOnchain] = useState(false);
   const [whitelisting, setWhitelisting] = useState(false);
 
+  // Fetch all events on mount
+  useEffect(() => {
+    (async () => {
+      setLoadingEvents(true);
+      try {
+        const allEvents = await getEvents();
+        setEvents(allEvents || []);
+      } catch (err) {
+        console.error('Failed loading events:', err);
+      } finally {
+        setLoadingEvents(false);
+      }
+    })();
+  }, []);
+
+  // Sync selected event ID with the eligibility check result or default to first event in list
+  useEffect(() => {
+    if (isConnected && eventId && !selectedEventId) {
+      setSelectedEventId(eventId);
+    } else if (!isConnected && events.length > 0 && !selectedEventId) {
+      setSelectedEventId(events[0]._id);
+    }
+  }, [eventId, selectedEventId, isConnected, events]);
+
   const checkOnchainStatus = async () => {
-    if (!address) return;
+    if (!address || !selectedEventId) return;
     setCheckingOnchain(true);
     try {
       const publicClient = createPublicClient({
@@ -57,11 +89,13 @@ export default function Home() {
       });
       setContractOwner(ownerAddress);
 
+      const eventIdBigInt = BigInt('0x' + selectedEventId);
+
       const isUserEligible = await publicClient.readContract({
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'isEligible',
-        args: [address]
+        args: [address, eventIdBigInt]
       });
       setOnchainEligible(isUserEligible);
 
@@ -69,7 +103,7 @@ export default function Home() {
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'getCredential',
-        args: [address]
+        args: [address, eventIdBigInt]
       });
       setOnchainClaimed(credentialInfo[2]); // Third index is claimed (bool)
       console.log('[Onchain Check] Owner:', ownerAddress, 'User:', address, 'Eligible:', isUserEligible, 'Claimed:', credentialInfo[2]);
@@ -81,12 +115,13 @@ export default function Home() {
   };
 
   const handleWhitelistOnchain = async () => {
-    if (!signer || !address) return;
+    if (!signer || !address || !selectedEventId) return;
     setWhitelisting(true);
     try {
       const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
-      console.log('[Onchain Whitelist] Sending addEligible transaction for:', address);
-      const tx = await contract.addEligible(address);
+      const eventIdBigInt = BigInt('0x' + selectedEventId);
+      console.log('[Onchain Whitelist] Sending addEligible transaction for:', address, 'event:', selectedEventId);
+      const tx = await contract.addEligible(address, eventIdBigInt);
       console.log('[Onchain Whitelist] Transaction sent:', tx.hash);
       
       // Wait for 1 confirmation
@@ -105,14 +140,15 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (isConnected && address) {
+    if (isConnected && address && selectedEventId) {
       checkOnchainStatus();
     } else {
       setContractOwner('');
       setOnchainEligible(false);
       setOnchainClaimed(false);
     }
-  }, [address, isConnected]);
+  }, [address, isConnected, selectedEventId]);
+  
   const [loadingCredentials, setLoadingCredentials] = useState(false);
 
   // UGF Gasless Claiming States
@@ -120,9 +156,6 @@ export default function Home() {
   const [ugfStep, setUgfStep] = useState(''); // 'quoting' | 'settling' | 'executing' | 'confirming' | 'success'
   const [txDetails, setTxDetails] = useState({ tokenId: null, txHash: '', tier: '', metadataUri: '' });
   const [ugfError, setUgfError] = useState('');
-
-  // Standard eligibility check for Event Pass (Tier 0)
-  const { checked, isEligible, eventTitle, eventId, loading: loadingEligibility } = useEligibility(address, isConnected);
 
   // Real UGF Claim Flow Hook
   const { ugfStep: realUgfStep, txDetails: realTxDetails, error: realError, triggerClaim, reset: resetRealUgf } = useUGFClaim();
@@ -170,10 +203,17 @@ export default function Home() {
   }, [isConnected, address]);
 
   // Computed state calculations
-  const claimedLevels = new Set(credentials.map(c => c.tierLevel));
+  const activeCredentials = credentials.filter(c => {
+    const cEventId = typeof c.eventId === 'object' ? c.eventId?._id : c.eventId;
+    return cEventId === selectedEventId;
+  });
+
+  const claimedLevels = new Set(activeCredentials.map(c => c.tierLevel));
+
   if (onchainClaimed) {
     claimedLevels.add(0);
   }
+
   const highestClaimedLevel = claimedLevels.size > 0 
     ? Math.max(...Array.from(claimedLevels)) 
     : -1;
@@ -211,7 +251,7 @@ export default function Home() {
       }
       try {
         // Real UGF flow
-        await triggerClaim(address, eventId || '664cc56a7d7324a0d85485ab', 0);
+        await triggerClaim(address, selectedEventId || '664cc56a7d7324a0d85485ab', 0);
         // Reload credentials
         await loadCredentials();
       } catch (err) {
@@ -226,8 +266,12 @@ export default function Home() {
 
   // Find info about the credential of a claimed tier
   const getClaimedTxDetails = (level) => {
-    return credentials.find(c => c.tierLevel === level);
+    return activeCredentials.find(c => c.tierLevel === level);
   };
+
+  const activeEventObj = events.find(e => e._id === selectedEventId) || (events.length > 0 ? events[0] : null);
+  const activeEventTitle = activeEventObj ? activeEventObj.title : (eventTitle || 'Credify Hackathon Ladder');
+  const activeEventDesc = activeEventObj ? activeEventObj.description : 'Build your reputation throughout the hackathon in 5 sequential tiers, claimable gaslessly via the Universal Gas Framework (UGF).';
 
   return (
     <div className="container page-content">
@@ -241,8 +285,112 @@ export default function Home() {
           Onchain Hackathon Progression
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '1.15rem', maxWidth: '700px', margin: '0 auto', lineHeight: 1.6 }}>
-          Zero ETH. Zero gas friction. Build your reputation throughout the hackathon in 5 sequential tiers, claimable gaslessly via the Universal Gas Framework (UGF).
+          {activeEventDesc}
         </p>
+      </section>
+
+      {/* Event Selection Grid */}
+      <section style={{ marginBottom: '48px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+          <Compass size={18} style={{ color: 'var(--secondary)' }} />
+          <h2 style={{ fontSize: '1.25rem', margin: 0, fontFamily: 'var(--font-display)', fontWeight: 700 }}>Select Active Hackathon Event</h2>
+        </div>
+        
+        {loadingEvents ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '24px', background: 'var(--surface-hover)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
+            <div className="spinner spinner-sm" style={{ borderTopColor: 'var(--primary)' }}></div>
+            <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Loading hackathons...</span>
+          </div>
+        ) : events.length === 0 ? (
+          <div style={{ padding: '24px', textAlign: 'center', background: 'rgba(239, 68, 68, 0.05)', borderRadius: 'var(--radius-lg)', border: '1px solid rgba(239, 68, 68, 0.15)' }}>
+            <p style={{ color: 'var(--error)', fontSize: '14px' }}>No active hackathons found. Please log in as organizer to create one.</p>
+          </div>
+        ) : (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '20px'
+          }}>
+            {events.map((ev) => {
+              const isSelected = ev._id === selectedEventId;
+              const hasClaimedPass = credentials.some(c => {
+                const cEventId = typeof c.eventId === 'object' ? c.eventId?._id : c.eventId;
+                return cEventId === ev._id && c.tierLevel === 0;
+              });
+
+              return (
+                <div
+                  key={ev._id}
+                  onClick={() => {
+                    setSelectedEventId(ev._id);
+                    setClaimingTier(null);
+                    setUgfStep('');
+                    setUgfError('');
+                  }}
+                  className="card"
+                  style={{
+                    padding: '24px',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    border: isSelected ? '1px solid var(--secondary)' : '1px solid var(--border)',
+                    background: isSelected ? 'rgba(129, 140, 248, 0.04)' : 'var(--surface)',
+                    boxShadow: isSelected ? '0 0 20px rgba(129, 140, 248, 0.15)' : 'none',
+                    transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                    transform: isSelected ? 'translateY(-2px)' : 'none'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isSelected) {
+                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.25)';
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSelected) {
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.transform = 'none';
+                    }
+                  }}
+                >
+                  {/* Subtle top indicator glow for selected */}
+                  {isSelected && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: '10%',
+                      right: '10%',
+                      height: '2px',
+                      background: 'linear-gradient(90deg, transparent, var(--secondary), transparent)'
+                    }} />
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-subtle)', fontFamily: 'var(--font-mono)' }}>
+                      {new Date(ev.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                    {hasClaimedPass ? (
+                      <span className="chip chip-verified" style={{ fontSize: '9px', padding: '2px 8px' }}>
+                        <span className="chip-dot"></span> Claimed
+                      </span>
+                    ) : (
+                      <span className="chip chip-eligible" style={{ fontSize: '9px', padding: '2px 8px' }}>
+                        <span className="chip-dot"></span> Open
+                      </span>
+                    )}
+                  </div>
+
+                  <h3 style={{ fontSize: '1.15rem', marginBottom: '8px', color: isSelected ? '#fff' : 'var(--text-muted)', transition: 'color var(--t)' }}>
+                    {ev.title}
+                  </h3>
+                  
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-subtle)', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', height: '2.8em' }}>
+                    {ev.description}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {/* Main Grid Layout */}
@@ -484,13 +632,13 @@ export default function Home() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.9rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: 'var(--text-muted)' }}>Active Event:</span>
-                  <span style={{ fontWeight: 600, color: 'var(--secondary)' }}>{eventTitle || 'Credify Hackathon Ladder'}</span>
+                  <span style={{ fontWeight: 600, color: 'var(--secondary)' }}>{activeEventTitle}</span>
                 </div>
                 
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: 'var(--text-muted)' }}>Your Wallet:</span>
                   <span style={{ fontFamily: 'var(--font-mono)', color: '#fff' }}>
-                    {address.substring(0, 6)}...{address.substring(address.length - 4)}
+                    {address ? `${address.substring(0, 6)}...${address.substring(address.length - 4)}` : ''}
                   </span>
                 </div>
 

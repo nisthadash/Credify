@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { checkEligibility } from '../services/credentialService.js';
 
-export function useEligibility(address, isConnected) {
+export function useEligibility(address, isConnected, eventId = null) {
   const [eligibility, setEligibility] = useState({ checked: false, isEligible: false, eventTitle: '', eventId: '' });
   const [loading, setLoading] = useState(false);
 
@@ -13,18 +13,18 @@ export function useEligibility(address, isConnected) {
     (async () => {
       setLoading(true);
       try {
-        const data = await checkEligibility(address);
+        const data = await checkEligibility(address, eventId);
         setEligibility({
           checked: true,
           isEligible: data.isEligible,
           eventTitle: data.eventTitle,
-          eventId: data.eventId || ''
+          eventId: data.eventId || eventId || ''
         });
       } finally {
         setLoading(false);
       }
     })();
-  }, [address, isConnected]);
+  }, [address, isConnected, eventId]);
 
-  return { ...eligibility, loading };
+  return { ...eligibility, loading, setEligibility };
 }

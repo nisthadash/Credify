@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 const { errorHandler } = require('./middleware/errorMiddleware');
@@ -11,9 +13,37 @@ dotenv.config();
 // Initialize express app
 const app = express();
 
+// Security Headers
+app.use(helmet());
+
 // Standard Middlewares
-app.use(cors());
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  process.env.CLIENT_URL
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, or server-to-server)
+    if (!origin) return callback(null, true);
+    
+    const isAllowed = allowedOrigins.includes(origin) || 
+                      origin.startsWith('http://localhost:') || 
+                      origin.startsWith('http://127.0.0.1:');
+                      
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true, // Allow sending cookies
+}));
 app.use(express.json());
+app.use(cookieParser());
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -27,6 +57,8 @@ const eventRoutes = require('./routes/eventRoutes');
 const eligibilityRoutes = require('./routes/eligibilityRoutes');
 const credentialRoutes = require('./routes/credentialRoutes');
 const verifyRoutes = require('./routes/verifyRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
+const webhookRoutes = require('./routes/webhookRoutes');
 
 // API Health Check / Welcome page
 app.get('/', (req, res) => {
@@ -47,6 +79,8 @@ app.use('/api/events', eventRoutes);
 app.use('/api/eligible', eligibilityRoutes);
 app.use('/api/credentials', credentialRoutes);
 app.use('/api/verify', verifyRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/webhooks', webhookRoutes);
 
 // Global Error Handler Middleware
 app.use(errorHandler);

@@ -12,7 +12,7 @@ import { baseSepolia } from 'viem/chains';
 import { Contract } from 'ethers';
 import { useEthersSigner } from '../utils/ethers.js';
 import { CONTRACT_ADDRESS, ABI } from '../config/contract.js';
-import { saveClaim } from '../services/credentialService.js';
+import { saveClaim, getCredentialsByWallet } from '../services/credentialService.js';
 
 const EVENT = {
   name: 'Credify Base Sepolia Workshop',
@@ -35,9 +35,24 @@ export default function ClaimPage() {
   const [onchainClaimed, setOnchainClaimed] = useState(false);
   const [checkingOnchain, setCheckingOnchain] = useState(false);
   const [whitelisting, setWhitelisting] = useState(false);
+  const [credentials, setCredentials] = useState([]);
+  const [loadingCreds, setLoadingCreds] = useState(false);
+
+  const loadCredentials = async () => {
+    if (!address) return;
+    setLoadingCreds(true);
+    try {
+      const data = await getCredentialsByWallet(address);
+      setCredentials(data || []);
+    } catch (err) {
+      console.error('Error loading credentials in ClaimPage:', err);
+    } finally {
+      setLoadingCreds(false);
+    }
+  };
 
   const checkOnchainStatus = async () => {
-    if (!address) return;
+    if (!address || !eventId) return;
     setCheckingOnchain(true);
     try {
       const publicClient = createPublicClient({
@@ -52,11 +67,13 @@ export default function ClaimPage() {
       });
       setContractOwner(ownerAddress);
 
+      const eventIdBigInt = BigInt('0x' + eventId);
+
       const isUserEligible = await publicClient.readContract({
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'isEligible',
-        args: [address]
+        args: [address, eventIdBigInt]
       });
       setOnchainEligible(isUserEligible);
 
@@ -64,7 +81,7 @@ export default function ClaimPage() {
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'getCredential',
-        args: [address]
+        args: [address, eventIdBigInt]
       });
       setOnchainClaimed(credentialInfo[2]); // Third index is claimed (bool)
       console.log('[ClaimPage Onchain Check] Owner:', ownerAddress, 'User:', address, 'Eligible:', isUserEligible, 'Claimed:', credentialInfo[2]);
@@ -76,12 +93,13 @@ export default function ClaimPage() {
   };
 
   const handleWhitelistOnchain = async () => {
-    if (!signer || !address) return;
+    if (!signer || !address || !eventId) return;
     setWhitelisting(true);
     try {
       const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
-      console.log('[ClaimPage Onchain Whitelist] Sending addEligible transaction for:', address);
-      const tx = await contract.addEligible(address);
+      const eventIdBigInt = BigInt('0x' + eventId);
+      console.log('[ClaimPage Onchain Whitelist] Sending addEligible transaction for:', address, 'event:', eventId);
+      const tx = await contract.addEligible(address, eventIdBigInt);
       console.log('[ClaimPage Onchain Whitelist] Transaction sent:', tx.hash);
       
       // Wait for 1 confirmation
@@ -100,14 +118,23 @@ export default function ClaimPage() {
   };
 
   React.useEffect(() => {
-    if (isConnected && address) {
+    if (isConnected && address && eventId) {
       checkOnchainStatus();
+      loadCredentials();
     } else {
       setContractOwner('');
       setOnchainEligible(false);
       setOnchainClaimed(false);
+      setCredentials([]);
     }
-  }, [address, isConnected]);
+  }, [address, isConnected, eventId]);
+
+  const hasClaimedThisEvent = credentials.some(c => {
+    const cEventId = typeof c.eventId === 'object' ? c.eventId?._id : c.eventId;
+    return cEventId === eventId;
+  });
+
+  const isAlreadyClaimedForEvent = hasClaimedThisEvent || onchainClaimed;
 
   const handleClaim = async () => {
     if (!onchainEligible) {
@@ -177,12 +204,12 @@ export default function ClaimPage() {
                   </p>
                   <ConnectWalletButton />
                 </div>
-              ) : eligLoading ? (
+              ) : eligLoading || loadingCreds ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center', padding: '12px' }}>
                   <Loader size="md" />
                   <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Checking eligibility…</span>
                 </div>
-              ) : onchainClaimed ? (
+              ) : isAlreadyClaimedForEvent ? (
                 <div style={{ textAlign: 'center', padding: '16px 0' }}>
                   <p style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}><ShieldCheck size={28} style={{ color: 'var(--success)' }} /></p>
                   <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px', color: '#fff' }}>Credential Already Claimed</h3>

@@ -34,6 +34,14 @@ const credentialSchema = new mongoose.Schema({
     type: String, 
     enum: ['minting', 'minted', 'upgraded', 'revoked'],
     default: 'minted' 
+  },
+  expiresAt: {
+    type: Date,
+    default: null
+  },
+  isRevoked: {
+    type: Boolean,
+    default: false
   }
 }, { timestamps: true });
 

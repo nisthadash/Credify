@@ -15,6 +15,8 @@ import { injected, coinbaseWallet } from 'wagmi/connectors';
 // Universal Gas Framework (UGF)
 import { UGFProvider } from '@tychilabs/react-ugf';
 
+import ErrorBoundary from './components/common/ErrorBoundary.jsx';
+
 const queryClient = new QueryClient();
 
 const wagmiConfig = createConfig({
@@ -37,7 +39,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
           <UGFProvider mode="testnet">
-            <App />
+            <ErrorBoundary>
+              <App />
+            </ErrorBoundary>
           </UGFProvider>
         </QueryClientProvider>
       </WagmiProvider>

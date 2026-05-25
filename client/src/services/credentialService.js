@@ -1,8 +1,20 @@
 import apiFetch from './api.js';
 
-export async function checkEligibility(address) {
+export async function getEvents() {
   try {
-    const data = await apiFetch(`/eligible/${address}`);
+    const data = await apiFetch('/events');
+    if (data.success) return data.data;
+    throw new Error(data.message);
+  } catch (err) {
+    console.error('[credentialService] getEvents failed:', err);
+    return [];
+  }
+}
+
+export async function checkEligibility(address, eventId = null) {
+  try {
+    const endpoint = eventId ? `/eligible/${address}/${eventId}` : `/eligible/${address}`;
+    const data = await apiFetch(endpoint);
     if (data.success) return data.data;
     throw new Error(data.message);
   } catch {

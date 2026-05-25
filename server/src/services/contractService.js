@@ -9,6 +9,11 @@ const ABI = [
         "internalType": "address",
         "name": "user",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "eventId",
+        "type": "uint256"
       }
     ],
     "name": "getCredential",
@@ -120,11 +125,12 @@ const getContractOwner = async () => {
 };
 
 /**
- * Fetch onchain credential information for a given wallet address
+ * Fetch onchain credential information for a given wallet address and event
  * @param {string} walletAddress 
+ * @param {string} eventId
  * @returns {Promise<{tokenId: number, tier: number, hasClaimed: boolean}>}
  */
-const getOnchainCredential = async (walletAddress) => {
+const getOnchainCredential = async (walletAddress, eventId) => {
   const contractAddress = process.env.CONTRACT_ADDRESS;
 
   // Graceful fallback if contract is not configured or dummy address is used
@@ -136,12 +142,19 @@ const getOnchainCredential = async (walletAddress) => {
   try {
     const client = getPublicClient();
     
-    // Call contract getCredential(address)
+    let eventIdBigInt = 0n;
+    if (eventId && eventId.length === 24) {
+      eventIdBigInt = BigInt('0x' + eventId);
+    } else if (eventId && eventId.startsWith('0x')) {
+      eventIdBigInt = BigInt(eventId);
+    }
+
+    // Call contract getCredential(address, eventId)
     const result = await client.readContract({
       address: contractAddress,
       abi: ABI,
       functionName: 'getCredential',
-      args: [walletAddress]
+      args: [walletAddress, eventIdBigInt]
     });
 
     return {
@@ -151,7 +164,7 @@ const getOnchainCredential = async (walletAddress) => {
       isMock: false
     };
   } catch (error) {
-    console.error(`[ContractService] Error calling getCredential for ${walletAddress}:`, error.message);
+    console.error(`[ContractService] Error calling getCredential for ${walletAddress} on event ${eventId}:`, error.message);
     return { tokenId: 0, tier: 0, hasClaimed: false, error: error.message };
   }
 };
@@ -188,4 +201,3 @@ module.exports = {
   getOnchainCredential,
   getOnchainTokenUri
 };
-

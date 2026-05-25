@@ -9,6 +9,15 @@ const generateToken = (id) => {
   });
 };
 
+const setTokenCookie = (res, token) => {
+  res.cookie('token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+  });
+};
+
 /**
  * @desc    Register a new organizer
  * @route   POST /api/auth/register
@@ -35,12 +44,14 @@ const registerOrganizer = async (req, res, next) => {
     });
 
     if (user) {
+      const token = generateToken(user._id);
+      setTokenCookie(res, token);
       return response.success(res, {
         _id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
-        token: generateToken(user._id)
+        token
       }, 'Organizer registered successfully', 201);
     } else {
       return response.error(res, 'Invalid user data provided', 400);
@@ -66,12 +77,14 @@ const loginOrganizer = async (req, res, next) => {
     const user = await User.findOne({ email });
 
     if (user && (await user.matchPassword(password))) {
+      const token = generateToken(user._id);
+      setTokenCookie(res, token);
       return response.success(res, {
         _id: user._id,
         name: user.name,
         email: user.email,
         role: user.role,
-        token: generateToken(user._id)
+        token
       }, 'Login successful');
     } else {
       return response.error(res, 'Invalid email or password', 401);

@@ -50,9 +50,10 @@ export function useUGFClaim() {
         // Step 2 — Settle
         setUgfStep('settling');
 
-        // Encode claimPass(tokenURI) transaction
+        // Encode claimPass(eventId, tokenURI) transaction
         const iface = new Interface(ABI);
-        const txData = iface.encodeFunctionData('claimPass', [initData.metadataUri]);
+        const eventIdBigInt = BigInt('0x' + eventId);
+        const txData = iface.encodeFunctionData('claimPass', [eventIdBigInt, initData.metadataUri]);
 
         const tx = {
           to: CONTRACT_ADDRESS,
@@ -100,11 +101,12 @@ export function useUGFClaim() {
         console.log('[UGF Claim] Transaction confirmed in block:', receipt.blockNumber);
 
         // Fetch user's credential status onchain to find the actual minted tokenId
+        const eventIdBigInt = BigInt('0x' + activeEventId);
         const credentialInfo = await publicClient.readContract({
           address: CONTRACT_ADDRESS,
           abi: ABI,
           functionName: 'getCredential',
-          args: [claimAddress]
+          args: [claimAddress, eventIdBigInt]
         });
 
         const tokenId = Number(credentialInfo[0]);

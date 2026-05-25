@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { createEvent, getEvents, getEventById, updateEvent } = require('../controllers/eventController');
 const { protect, organizerOnly } = require('../middleware/authMiddleware');
+const { requireEventOwner } = require('../middleware/tenantMiddleware');
 
 router.route('/')
   .post(protect, organizerOnly, createEvent)
@@ -9,6 +10,6 @@ router.route('/')
 
 router.route('/:id')
   .get(getEventById)
-  .patch(protect, organizerOnly, updateEvent);
+  .patch(protect, organizerOnly, requireEventOwner, updateEvent);
 
 module.exports = router;
