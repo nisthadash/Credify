@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
 import { Link } from 'react-router-dom';
-import { Award, Filter, Wallet, Inbox } from 'lucide-react';
+import { Award, Filter, Wallet, Inbox, Github, Linkedin, Copy, Check, Share2, ExternalLink } from 'lucide-react';
 import { getCredentialsByWallet } from '../services/credentialService.js';
 import CredentialCard from '../components/credential/CredentialCard.jsx';
 import Loader from '../components/common/Loader.jsx';
@@ -109,16 +109,81 @@ export default function MyCredentialsPage() {
 
             {/* Grid */}
             {filtered.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-                {filtered.map((cred, i) => (
-                  <div key={cred.tokenId || i} className={`animate-fade-up delay-${Math.min(i * 100, 400)}`}>
-                    <CredentialCard credential={cred} />
-                  </div>
-                ))}
-              </div>
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px', marginBottom: '40px' }}>
+                  {filtered.map((cred, i) => (
+                    <div key={cred.tokenId || i} className={`animate-fade-up delay-${Math.min(i * 100, 400)}`}>
+                      <CredentialCard credential={cred} />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Share & Export hub */}
+                <ShareHub credentials={filtered} />
+              </>
             )}
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+function ShareHub({ credentials }) {
+  const [copiedId, setCopiedId] = useState(null);
+  const verifyUrl = `${window.location.origin}/verify`;
+
+  const getMarkdown = (cred) => {
+    const name = cred.eventName || 'Credify Badge';
+    return `[![Credify Badge](https://img.shields.io/badge/Credify-${encodeURIComponent(name).replace(/-/g,'--')}-818cf8?style=flat&logo=ethereum&logoColor=white)](${verifyUrl})`;
+  };
+
+  const getLinkedIn = (cred) => {
+    const name = cred.eventName || 'Credify Badge';
+    return `https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name=${encodeURIComponent(name)}&organizationName=Credify&issueYear=${new Date().getFullYear()}&issueMonth=${new Date().getMonth()+1}&certUrl=${encodeURIComponent(verifyUrl)}&certId=${cred.tokenId || ''}`;
+  };
+
+  const copy = (id, text) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  return (
+    <div className="card animate-fade-up" style={{ padding: '24px', background: 'rgba(129,140,248,0.04)', border: '1px solid rgba(129,140,248,0.14)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+        <Share2 size={16} style={{ color: '#818cf8' }} />
+        <span style={{ fontSize: '13px', fontWeight: 700, color: '#c4b5fd', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Share & Export</span>
+        <span style={{ marginLeft: 'auto', fontSize: '12px', color: 'var(--text-subtle)' }}>{credentials.length} credential{credentials.length !== 1 ? 's' : ''}</span>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {credentials.map((cred) => {
+          const id = cred.tokenId || cred._id;
+          const name = cred.eventName || 'Credify Badge';
+          const md = getMarkdown(cred);
+          return (
+            <div key={id} style={{ padding: '14px 16px', borderRadius: '10px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: '13px', fontWeight: 700, color: '#fff', marginBottom: '4px', fontFamily: 'var(--font-display)' }}>{name}</p>
+                  <code style={{ fontSize: '10px', color: '#64748b', fontFamily: 'var(--font-mono)', wordBreak: 'break-all', lineHeight: 1.5, display: 'block' }}>{md}</code>
+                </div>
+                <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                  <button onClick={() => copy(id, md)} className="btn btn-sm btn-ghost" style={{ gap: '5px', padding: '0 10px', height: '30px' }} title="Copy GitHub README markdown">
+                    {copiedId === id ? <><Check size={11} style={{ color: '#22c55e' }} /> Copied</> : <><Github size={11} /> README</>}
+                  </button>
+                  <a href={getLinkedIn(cred)} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-ghost" style={{ textDecoration: 'none', gap: '5px', padding: '0 10px', height: '30px' }} title="Add to LinkedIn">
+                    <Linkedin size={11} style={{ color: '#0ea5e9' }} /> LinkedIn
+                  </a>
+                  <a href={`${verifyUrl}?token=${id}`} target="_blank" rel="noreferrer" className="btn btn-sm btn-ghost" style={{ textDecoration: 'none', padding: '0 8px', height: '30px' }} title="Verify">
+                    <ExternalLink size={11} />
+                  </a>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CheckCircle2, ExternalLink, Award, Compass, Download, Twitter } from 'lucide-react';
+import { CheckCircle2, ExternalLink, Award, Compass, Download, Twitter, Github, Linkedin, Copy, Check, Share2 } from 'lucide-react';
 
 export default function SuccessPage() {
   const [params] = useSearchParams();
@@ -8,6 +8,7 @@ export default function SuccessPage() {
   const txHash   = params.get('txHash')  || '0x' + 'a'.repeat(64);
   const eventName= params.get('event')   || 'Credify Base Sepolia Workshop';
   const [show, setShow] = useState(false);
+  const [copiedBadge, setCopiedBadge] = useState(false);
 
   useEffect(() => { const t = setTimeout(() => setShow(true), 80); return () => clearTimeout(t); }, []);
 
@@ -132,6 +133,18 @@ export default function SuccessPage() {
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+  const decodedEvent = decodeURIComponent(eventName);
+  const verifyUrl = `${window.location.origin}/verify`;
+  const badgeMarkdown = `[![Credify Badge](https://img.shields.io/badge/Credify-${encodeURIComponent(decodedEvent).replace(/-/g,'--')}-818cf8?style=flat&logo=ethereum&logoColor=white)](${verifyUrl})`;
+
+  const copyBadge = () => {
+    navigator.clipboard.writeText(badgeMarkdown);
+    setCopiedBadge(true);
+    setTimeout(() => setCopiedBadge(false), 2000);
+  };
+
+  const linkedInUrl = `https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name=${encodeURIComponent(decodedEvent)}&organizationName=Credify&issueYear=${new Date().getFullYear()}&issueMonth=${new Date().getMonth()+1}&certUrl=${encodeURIComponent(verifyUrl)}&certId=${tokenId}`;
+
   return (
     <div className="page-content">
       <div style={{ maxWidth: '600px', margin: '0 auto', padding: '0 clamp(16px, 4vw, 32px)' }}>
@@ -231,6 +244,40 @@ export default function SuccessPage() {
           <button onClick={handleShareOnX} className="btn btn-primary">
             <Twitter size={14} /> Share on X
           </button>
+        </div>
+
+        {/* ── Share & Embed Section ── */}
+        <div className={`card ${show ? 'animate-fade-up delay-400' : ''}`} style={{ padding: '24px', marginBottom: '20px', background: 'rgba(129,140,248,0.04)', border: '1px solid rgba(129,140,248,0.14)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '18px' }}>
+            <Share2 size={16} style={{ color: '#818cf8' }} />
+            <span style={{ fontSize: '13px', fontWeight: 700, color: '#c4b5fd', fontFamily: 'var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Share Your Credential</span>
+          </div>
+
+          {/* GitHub README badge */}
+          <div style={{ marginBottom: '16px', padding: '16px', borderRadius: '10px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+              <Github size={15} style={{ color: '#e2e8f0' }} />
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>GitHub README Badge</span>
+            </div>
+            <code style={{ display: 'block', fontSize: '11px', color: '#94a3b8', fontFamily: 'var(--font-mono)', lineHeight: 1.6, wordBreak: 'break-all', marginBottom: '10px' }}>
+              {badgeMarkdown}
+            </code>
+            <button onClick={copyBadge} className="btn btn-sm btn-ghost" style={{ gap: '6px' }}>
+              {copiedBadge ? <><Check size={12} style={{ color: '#22c55e' }} /> Copied!</> : <><Copy size={12} /> Copy Markdown</>}
+            </button>
+          </div>
+
+          {/* LinkedIn */}
+          <div style={{ padding: '16px', borderRadius: '10px', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+              <Linkedin size={15} style={{ color: '#0ea5e9' }} />
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>LinkedIn Certification</span>
+            </div>
+            <p style={{ fontSize: '12px', color: 'var(--text-subtle)', lineHeight: 1.6, marginBottom: '10px' }}>Add this credential to your LinkedIn profile under Licenses &amp; Certifications.</p>
+            <a href={linkedInUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-ghost" style={{ textDecoration: 'none', gap: '6px', display: 'inline-flex' }}>
+              <Linkedin size={12} style={{ color: '#0ea5e9' }} /> Add to LinkedIn
+            </a>
+          </div>
         </div>
 
         {/* Zero ETH note */}

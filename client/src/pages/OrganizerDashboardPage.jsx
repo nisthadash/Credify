@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Award, Clock, Plus, Upload, LogOut, ArrowUp, ExternalLink, Calendar, CheckCircle2, UserPlus, Info, Sliders, TrendingUp, Zap, Layers, XCircle, Ban } from 'lucide-react';
+import { Users, Award, Clock, Plus, Upload, LogOut, ArrowUp, ExternalLink, Calendar, CheckCircle2, UserPlus, Info, Sliders, TrendingUp, Zap, Layers, XCircle, Ban, Link2, Settings, Copy, RefreshCw, Globe, MessageSquare, FileText } from 'lucide-react';
 import apiFetch from '../services/api.js';
 
 import BadgeStudio from '../components/organizer/BadgeStudio.jsx';
@@ -8,9 +8,7 @@ import AnalyticsDashboard from '../components/organizer/AnalyticsDashboard.jsx';
 import WebhookPanel from '../components/organizer/WebhookPanel.jsx';
 
 // Web3 Imports
-import { useAccount } from 'wagmi';
-import { Contract } from 'ethers';
-import { useEthersSigner } from '../utils/ethers.js';
+import { useAccount, useWalletClient } from 'wagmi';
 import { CONTRACT_ADDRESS, ABI } from '../config/contract.js';
 import ConnectWalletButton from '../components/wallet/ConnectWalletButton.jsx';
 import { createPublicClient, http } from 'viem';
@@ -57,11 +55,11 @@ export default function OrganizerDashboardPage() {
   const [whitelistMode, setWhitelistMode] = useState('single');
 
   // Tab View
-  const [activeTab, setActiveTab] = useState('roster'); // 'roster' | 'upgrades' | 'analytics' | 'studio' | 'webhooks'
+  const [activeTab, setActiveTab] = useState('roster'); // 'roster'|'upgrades'|'analytics'|'integrations'|'settings'|'studio'|'webhooks'
 
   // Web3 States
   const { address: connectedAddress, isConnected } = useAccount();
-  const signer = useEthersSigner();
+  const { data: walletClient } = useWalletClient();
   const [contractOwner, setContractOwner] = useState('');
   const [checkingOwner, setCheckingOwner] = useState(false);
   const [upgradingWallet, setUpgradingWallet] = useState(null); // wallet address being upgraded
@@ -73,7 +71,7 @@ export default function OrganizerDashboardPage() {
   const [syncingWallet, setSyncingWallet] = useState(null);
 
   const canWriteOnchain = Boolean(
-    signer &&
+    walletClient &&
     connectedAddress &&
     contractOwner &&
     connectedAddress.toLowerCase() === contractOwner.toLowerCase()
@@ -883,6 +881,32 @@ export default function OrganizerDashboardPage() {
                 >
                   <Zap size={13} /> Webhooks & API
                 </button>
+                <button
+                  onClick={() => setActiveTab('integrations')}
+                  style={{
+                    background: 'transparent', border: 'none',
+                    borderBottom: activeTab === 'integrations' ? '2.5px solid var(--primary)' : '2.5px solid transparent',
+                    color: activeTab === 'integrations' ? '#fff' : 'var(--text-muted)',
+                    fontWeight: 700, paddingBottom: '6px', cursor: 'pointer', fontSize: '14px',
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Link2 size={13} /> Integrations
+                </button>
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  style={{
+                    background: 'transparent', border: 'none',
+                    borderBottom: activeTab === 'settings' ? '2.5px solid var(--primary)' : '2.5px solid transparent',
+                    color: activeTab === 'settings' ? '#fff' : 'var(--text-muted)',
+                    fontWeight: 700, paddingBottom: '6px', cursor: 'pointer', fontSize: '14px',
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Settings size={13} /> Settings
+                </button>
               </div>
               <span style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>{participants.length} whitelisted</span>
             </div>
@@ -1167,6 +1191,120 @@ export default function OrganizerDashboardPage() {
 
             {activeTab === 'webhooks' && (
               <WebhookPanel eventId={activeEvent._id} />
+            )}
+
+            {/* ── INTEGRATIONS TAB ── */}
+            {activeTab === 'integrations' && (
+              <div style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ marginBottom: '8px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>Third-Party Integrations</h3>
+                  <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Connect external platforms to automatically sync attendees, submissions, and assign roles.</p>
+                </div>
+
+                {[
+                  {
+                    id: 'luma', name: 'Luma Sync', icon: Globe, color: '#f9a8d4',
+                    status: 'not_connected',
+                    desc: 'Automatically import attendee wallets from your Luma event page. Keep your whitelist in sync with RSVPs.',
+                    lastSync: null,
+                    connectLabel: 'Connect Luma',
+                  },
+                  {
+                    id: 'devpost', name: 'Devpost Syncer', icon: FileText, color: '#fbbf24',
+                    status: 'not_connected',
+                    desc: 'Pull hackathon project submissions from Devpost and whitelist registered teams automatically.',
+                    lastSync: null,
+                    connectLabel: 'Connect Devpost',
+                  },
+                  {
+                    id: 'discord', name: 'Discord Role Assigner', icon: MessageSquare, color: '#818cf8',
+                    status: 'not_connected',
+                    desc: 'Assign Discord roles to participants after they connect their wallet and prove onchain badge ownership. Roles are assigned per tier level.',
+                    lastSync: null,
+                    connectLabel: 'Setup Discord Bot',
+                    note: 'Roles are assigned only after wallet connection + onchain badge proof.',
+                  },
+                ].map(({ id, name, icon: Icon, color, status, desc, lastSync, connectLabel, note }) => (
+                  <div key={id} style={{ padding: '22px', borderRadius: '14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', display: 'flex', gap: '18px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                    <div style={{ width: 44, height: 44, borderRadius: '12px', background: `${color}12`, border: `1px solid ${color}28`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Icon size={20} style={{ color }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '15px', fontWeight: 700, color: '#fff' }}>{name}</span>
+                        <span style={{
+                          fontSize: '11px', fontWeight: 700, padding: '2px 10px', borderRadius: '99px',
+                          background: status === 'connected' ? 'rgba(34,197,94,0.1)' : 'rgba(255,255,255,0.06)',
+                          color: status === 'connected' ? '#86efac' : 'var(--text-subtle)',
+                          border: `1px solid ${status === 'connected' ? 'rgba(34,197,94,0.25)' : 'rgba(255,255,255,0.1)'}`,
+                          textTransform: 'uppercase', letterSpacing: '0.05em',
+                        }}>
+                          {status === 'connected' ? '● Connected' : '○ Not Connected'}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: 1.65, marginBottom: note ? '8px' : '14px' }}>{desc}</p>
+                      {note && <p style={{ fontSize: '12px', color: 'var(--text-subtle)', padding: '7px 10px', borderRadius: '7px', background: `${color}08`, border: `1px solid ${color}18`, marginBottom: '14px' }}>ℹ️ {note}</p>}
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <button className="btn btn-sm btn-primary" style={{ gap: '6px', background: `${color}20`, color, border: `1px solid ${color}40` }} onClick={() => alert('Integration coming soon — connect your ' + name + ' account.')}>
+                          <Link2 size={12} /> {connectLabel}
+                        </button>
+                        {lastSync && <span style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>Last sync: {lastSync}</span>}
+                        {!lastSync && <span style={{ fontSize: '12px', color: 'var(--text-subtle)', fontStyle: 'italic' }}>Never synced</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── SETTINGS TAB ── */}
+            {activeTab === 'settings' && (
+              <div style={{ padding: '28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>Contract & Event Settings</h3>
+                  <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Manage your active contract, network, and deployment configuration.</p>
+                </div>
+
+                {/* Contract info card */}
+                <div style={{ padding: '22px', borderRadius: '14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                  <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '18px' }}>Active Contract</p>
+
+                  {[
+                    { label: 'Contract Address', value: CONTRACT_ADDRESS, mono: true },
+                    { label: 'Network', value: 'Base Sepolia (Chain ID: 84532)' },
+                    { label: 'Deployment Type', value: contractOwner ? (connectedAddress?.toLowerCase() === contractOwner?.toLowerCase() ? 'Owner Wallet Connected ✓' : 'External Contract') : 'Checking…' },
+                    { label: 'Contract Owner', value: contractOwner ? `${contractOwner.slice(0,10)}…${contractOwner.slice(-8)}` : 'Loading…', mono: true },
+                  ].map(({ label, value, mono }) => (
+                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', gap: '12px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '13px', color: 'var(--text-subtle)' }}>{label}</span>
+                      <span style={{ fontSize: '13px', fontWeight: 600, fontFamily: mono ? 'var(--font-mono)' : 'inherit', color: '#fff', textAlign: 'right', wordBreak: 'break-all', maxWidth: '300px' }}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <button className="btn btn-sm btn-ghost" style={{ gap: '6px' }} onClick={() => { navigator.clipboard.writeText(CONTRACT_ADDRESS); showToast('Contract address copied!'); }}>
+                    <Copy size={13} /> Copy Address
+                  </button>
+                  <a href={`https://sepolia.basescan.org/address/${CONTRACT_ADDRESS}`} target="_blank" rel="noreferrer" className="btn btn-sm btn-ghost" style={{ textDecoration: 'none', gap: '6px' }}>
+                    <ExternalLink size={13} /> View on Explorer
+                  </a>
+                  <button className="btn btn-sm btn-ghost" style={{ gap: '6px' }} onClick={() => alert('To replace your contract, go to Organizer Onboarding → Contract step.')}>
+                    <RefreshCw size={13} /> Replace Contract
+                  </button>
+                </div>
+
+                {/* Onboarding link */}
+                <div style={{ padding: '14px 16px', borderRadius: '10px', background: 'rgba(129,140,248,0.05)', border: '1px solid rgba(129,140,248,0.14)', fontSize: '13px', color: 'rgba(255,255,255,0.45)', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <Info size={14} style={{ color: '#818cf8', flexShrink: 0 }} />
+                  Need to deploy a new contract? Use the{' '}
+                  <button onClick={() => navigate('/organizer/onboarding')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#818cf8', fontSize: '13px', textDecoration: 'underline', padding: 0 }}>
+                    Onboarding Wizard
+                  </button>
+                  {' '}to deploy via the Credify factory on Base.
+                </div>
+              </div>
             )}
           </div>
         )}
