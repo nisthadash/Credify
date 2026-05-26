@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useAccount, useChainId } from 'wagmi';
+import { useAccount, useChainId, useWalletClient } from 'wagmi';
 import { CheckCircle2, ShieldAlert, Award, Star, Flame, Compass, ChevronRight, ChevronDown, Share2, ExternalLink, Lock, Unlock, Sparkles, RefreshCw, Zap, Info, Trophy, Sliders, Check } from 'lucide-react';
 import { useEligibility } from '../hooks/useEligibility.js';
 import { useUGFClaim } from '../hooks/useUGFClaim.js';
 import { saveClaim, getCredentialsByWallet, getEvents } from '../services/credentialService.js';
 import { createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
-import { Contract } from 'ethers';
-import { useEthersSigner } from '../utils/ethers.js';
 import { CONTRACT_ADDRESS, ABI } from '../config/contract.js';
 import ConnectWalletButton from '../components/wallet/ConnectWalletButton.jsx';
 
@@ -68,7 +66,7 @@ export default function LadderPage() {
   const [credentials, setCredentials] = useState([]);
 
   // On-chain owner and eligibility checks
-  const signer = useEthersSigner();
+  const { data: walletClient } = useWalletClient();
   const [contractOwner, setContractOwner] = useState('');
   const [onchainEligible, setOnchainEligible] = useState(false);
   const [onchainClaimed, setOnchainClaimed] = useState(false);
@@ -115,16 +113,23 @@ export default function LadderPage() {
   };
 
   const handleWhitelistOnchain = async () => {
-    if (!signer || !address) return;
+    if (!walletClient || !address) return;
     setWhitelisting(true);
     try {
-      const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
+      const eventIdBigInt = BigInt('0x' + eventId);
       console.log('[Onchain Whitelist] Sending addEligible transaction for:', address);
-      const tx = await contract.addEligible(address);
-      console.log('[Onchain Whitelist] Transaction sent:', tx.hash);
+      const hash = await walletClient.writeContract({
+        address: CONTRACT_ADDRESS,
+        abi: ABI,
+        functionName: 'addEligible',
+        args: [address, eventIdBigInt],
+        chain: baseSepolia,
+      });
+      console.log('[Onchain Whitelist] Transaction sent:', hash);
       
       // Wait for 1 confirmation
-      const receipt = await tx.wait();
+      const publicClient = createPublicClient({ chain: baseSepolia, transport: http('https://sepolia.base.org') });
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
       console.log('[Onchain Whitelist] Transaction confirmed:', receipt);
       
       // Refresh status
@@ -132,7 +137,7 @@ export default function LadderPage() {
       alert('Wallet whitelisted on-chain successfully!');
     } catch (err) {
       console.error('Error whitelisting onchain:', err);
-      alert('Failed to whitelist on-chain: ' + (err.reason || err.message || err));
+      alert('Failed to whitelist on-chain: ' + (err.shortMessage || err.message || err));
     } finally {
       setWhitelisting(false);
     }
