@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ShieldCheck, X, Wallet, Coins, Award, BarChart3, Settings2, BadgeCheck, Share2, ChevronRight, Zap, Users } from 'lucide-react';
 import logo from '../assets/logo.png';
@@ -14,6 +14,33 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const [isClicked, setIsClicked] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [scrollY, setScrollY] = useState(0);
+  const [organizersVisible, setOrganizersVisible] = useState(false);
+  const organizersRef = useRef(null);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrollY(window.scrollY);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setOrganizersVisible(true);
+        }
+      },
+      { threshold: 0.08 }
+    );
+    if (organizersRef.current) {
+      observer.observe(organizersRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      observer.disconnect();
+    };
+  }, []);
 
   const handleGetStartedClick = (e) => {
     e.preventDefault();
@@ -66,6 +93,10 @@ export default function LandingPage() {
         minHeight: '100vh',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: '80px 24px 60px',
+        opacity: Math.max(0, 1 - scrollY / 380),
+        transform: `translateY(${scrollY * 0.16}px)`,
+        transition: 'opacity 0.1s ease-out, transform 0.1s ease-out',
+        pointerEvents: scrollY > 300 ? 'none' : 'auto',
       }}>
         {/* Soft radial glow under headline — not a box */}
         <div style={{
@@ -187,7 +218,17 @@ export default function LandingPage() {
       }} />
 
       {/* ── For Organizers Section ── */}
-      <div style={{ position: 'relative', zIndex: 3, padding: '0 20px 100px' }}>
+      <div 
+        ref={organizersRef}
+        style={{ 
+          position: 'relative', 
+          zIndex: 3, 
+          padding: '0 20px 100px',
+          opacity: organizersVisible ? 1 : 0,
+          transform: organizersVisible ? 'translateY(0)' : 'translateY(40px)',
+          transition: 'opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+      >
         <div style={{ maxWidth: '900px', margin: '0 auto' }}>
 
           {/* Section header */}
