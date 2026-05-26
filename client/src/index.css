@@ -257,145 +257,130 @@ h1, h2, h3, h4, h5, h6 {
 .btn-sm { height: 32px; padding: 0 12px; font-size: 12px; border-radius: 10em; }
 .btn-full { width: 100%; }
 
-/* ── Premium Get Started Button ── */
+/* ── Get Started Button — Sliding Blue Pill ── */
 .get-started-btn-wrapper {
   position: relative;
   display: inline-block;
   z-index: 10;
 }
 
-/* Outer glow halo — intensifies on hover */
-.get-started-btn-wrapper::before {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  background: linear-gradient(130deg, #2563eb 0%, #818cf8 55%, #a78bfa 100%);
-  border-radius: 18px;
-  z-index: -1;
-  opacity: 0;
-  filter: blur(14px);
-  transition: opacity 0.45s ease, filter 0.45s ease;
-}
-
-.get-started-btn-wrapper:hover::before {
-  opacity: 0.55;
-  filter: blur(18px);
-}
+/* No glow, no halo — wrapper is just a positioning context */
+.get-started-btn-wrapper::before { display: none; }
 
 .get-started-btn {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 180px;
+  width: 184px;
   height: 52px;
+  /* White shell — stays white, border always visible */
   background: #ffffff;
-  color: #000000;
   border-radius: 14px;
   font-family: var(--font-display);
   font-size: 16px;
   font-weight: 700;
-  /* Always-visible border — stays through hover */
-  border: 1.5px solid rgba(0,0,0,0.85);
-  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+  color: #0a0a0f;
+  border: 1.5px solid rgba(15, 15, 30, 0.8);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
   cursor: pointer;
-  overflow: hidden;
+  overflow: hidden;        /* pill stays clipped inside */
   text-decoration: none;
   z-index: 1;
-  transition: transform 0.35s cubic-bezier(0.22,1,0.36,1),
-              box-shadow 0.35s cubic-bezier(0.22,1,0.36,1);
+  transition: transform 0.3s cubic-bezier(0.22,1,0.36,1),
+              box-shadow 0.3s cubic-bezier(0.22,1,0.36,1),
+              border-color 0.3s ease;
 }
 
-/* Inner gradient layer — fades in on hover, stays within border */
-.get-started-btn::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 12px; /* slightly inset to keep visible border */
-  background: linear-gradient(130deg, #1d4ed8 0%, #6366f1 55%, #8b5cf6 100%);
-  opacity: 0;
-  transition: opacity 0.4s cubic-bezier(0.22,1,0.36,1);
-  z-index: 0;
+.get-started-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.14);
+  border-color: rgba(37,99,235,0.55);
 }
 
-.get-started-btn:hover::after { opacity: 1; }
+.get-started-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.1);
+}
 
+/* ── The moving blue pill ── */
 .get-started-btn-icon {
   position: absolute;
   left: 4px;
   top: 4px;
+  /* Resting: just wide enough to hold the arrow */
   width: 44px;
-  height: 44px;
-  background: linear-gradient(130deg, #2563eb 0%, #818cf8 55%, #a78bfa 100%);
-  border-radius: 10px;
+  height: calc(100% - 8px);
+  background: linear-gradient(105deg, #1e40af 0%, #3b82f6 55%, #6366f1 100%);
+  border-radius: 9px;
+  /* Arrow lives inside and anchors to RIGHT edge of the pill */
   display: flex;
   align-items: center;
-  justify-content: center;
-  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
-              left 0.4s cubic-bezier(0.22, 1, 0.36, 1),
-              opacity 0.35s ease;
+  justify-content: flex-end;
+  padding-right: 10px;
+  /* Expand rightward on hover */
+  transition: width 0.36s cubic-bezier(0.4, 0, 0.2, 1),
+              border-radius 0.36s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 2;
+  overflow: hidden;
 }
 
-/* Icon slides and fades on hover */
+/* Pill expands to fill the shell (minus 4px inset on each side) */
 .get-started-btn:hover .get-started-btn-icon {
-  transform: translateX(2px);
-  opacity: 0.0;
+  width: calc(100% - 8px);
+  border-radius: 9px;
 }
 
+/* Arrow SVG — stays at right edge of pill as it expands */
+.get-started-btn-icon svg {
+  flex-shrink: 0;
+  transition: transform 0.36s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.get-started-btn:hover .get-started-btn-icon svg {
+  transform: translateX(0); /* stays at right edge naturally */
+}
+
+/* ── Label text ── */
 .get-started-btn-text {
   position: relative;
   z-index: 3;
-  transform: translateX(10px);
-  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  /* Offset right to sit clear of the resting icon pill */
+  transform: translateX(12px);
+  color: #0a0a0f;
+  transition: color 0.28s ease 0.04s,
+              transform 0.36s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.get-started-btn:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 10px 28px rgba(0,0,0,0.22);
-  border-color: rgba(37,99,235,0.6);
-}
-
+/* Text turns white and nudges slightly left as blue covers it */
 .get-started-btn:hover .get-started-btn-text {
   color: #ffffff;
   transform: translateX(0px);
 }
 
-.get-started-btn:hover svg {
-  opacity: 0;
-}
-
-.get-started-btn svg {
-  transition: opacity 0.3s ease;
-  position: relative;
-  z-index: 3;
-}
-
-.get-started-btn:active {
-  transform: translateY(1px);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-}
-
-/* Click exit state */
+/* ── Click-exit animation ── */
 .get-started-btn.clicked {
   pointer-events: none;
 }
 
-.get-started-btn.clicked::after { opacity: 1; }
+.get-started-btn.clicked .get-started-btn-icon {
+  width: calc(100% - 8px);
+}
 
 .get-started-btn.clicked .get-started-btn-text {
-  transform: translateX(-100px);
-  opacity: 0;
   color: #ffffff;
-  transition: transform 0.5s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease;
+  transform: translateX(-80px);
+  opacity: 0;
+  transition: transform 0.45s cubic-bezier(0.4,0,0.2,1),
+              opacity 0.28s ease;
 }
 
 .get-started-btn.clicked .get-started-btn-icon svg {
-  transform: translateX(160px);
+  transform: translateX(80px);
   opacity: 0;
-  transition: transform 0.5s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease;
+  transition: transform 0.45s cubic-bezier(0.4,0,0.2,1),
+              opacity 0.28s ease;
 }
-
 
 /* ── Cards ── */
 .card {
@@ -1471,28 +1456,22 @@ a, button, input, select, textarea,
   }
   .get-started-btn:hover {
     transform: none !important;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.15) !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
+    border-color: rgba(15,15,30,0.8) !important;
   }
   .get-started-btn:hover .get-started-btn-icon {
-    left: 4px !important;
-    top: 4px !important;
-    width: 48px !important;
-    height: 48px !important;
-    border-radius: 12px !important;
+    width: 44px !important;   /* keep pill at rest size on touch */
   }
   .get-started-btn:hover .get-started-btn-text {
-    color: #000000 !important;
-    transform: translateX(10px) !important;
-  }
-  .get-started-btn:hover svg {
-    transform: none !important;
+    color: #0a0a0f !important;
+    transform: translateX(12px) !important;
   }
   .new-here-btn:hover {
-    background: rgba(255, 255, 255, 0.04) !important;
-    color: rgba(255, 255, 255, 0.9) !important;
-    border-color: rgba(255, 255, 255, 0.1) !important;
+    background: rgba(255, 255, 255, 0.03) !important;
+    color: rgba(255, 255, 255, 0.65) !important;
+    border-color: rgba(255, 255, 255, 0.09) !important;
     transform: none !important;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+    box-shadow: none !important;
   }
   .card:hover, .credential-card:hover, .hover-box-card:hover {
     border-color: var(--border) !important;
