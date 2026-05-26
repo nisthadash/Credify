@@ -65,58 +65,96 @@ export default function LandingPage() {
         position: 'relative', zIndex: 3,
         minHeight: '100vh',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '60px 20px',
+        padding: '80px 24px 60px',
       }}>
-        <div
-          className="glass-panel animate-fade-up"
-          style={{
-            width: '90%', maxWidth: '640px',
-            padding: 'clamp(28px, 6vw, 52px) clamp(16px, 5vw, 44px)',
-            textAlign: 'center',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '22px',
-            background: 'rgba(10, 10, 20, 0.7)',
-            border: '1px solid rgba(255, 255, 255, 0.07)',
-            boxShadow: '0 32px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.04)',
-          }}
-        >
-          {/* Brand */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '-6px' }}>
-            <img src={logo} alt="Credify Logo" style={{ width: '38px', height: '38px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid rgba(255,255,255,0.15)', boxShadow: '0 0 15px rgba(37,99,235,0.35)' }} />
-            <span style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 800, letterSpacing: '-0.02em', color: '#ffffff' }}>Credify</span>
+        {/* Soft radial glow under headline — not a box */}
+        <div style={{
+          position: 'absolute',
+          top: '50%', left: '50%',
+          transform: 'translate(-50%, -56%)',
+          width: '700px', height: '400px',
+          background: 'radial-gradient(ellipse 70% 55% at 50% 50%, rgba(37,99,235,0.09) 0%, transparent 70%)',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }} />
+
+        <div style={{
+          position: 'relative', zIndex: 1,
+          width: '100%', maxWidth: '680px',
+          textAlign: 'center',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0px',
+        }}>
+          {/* Brand mark — fade in first */}
+          <div className="lp-fade-0" style={{
+            display: 'flex', alignItems: 'center', gap: '10px',
+            marginBottom: '28px',
+          }}>
+            <img src={logo} alt="Credify Logo" style={{
+              width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover',
+              border: '1.5px solid rgba(255,255,255,0.12)',
+              boxShadow: '0 0 18px rgba(37,99,235,0.3)',
+            }} />
+            <span style={{
+              fontFamily: 'var(--font-display)', fontSize: '20px',
+              fontWeight: 800, letterSpacing: '-0.02em', color: 'rgba(255,255,255,0.88)',
+            }}>Credify</span>
           </div>
 
-          {/* Eyebrow */}
-          <span style={{
-            background: 'rgba(37,99,235,0.1)', border: '1px solid rgba(37,99,235,0.22)',
-            padding: '5px 14px', borderRadius: '9999px',
-            fontSize: '11px', color: '#93c5fd', fontWeight: 600, letterSpacing: '0.07em',
-            textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: '7px',
+          {/* Eyebrow pill — fade in second */}
+          <span className="lp-fade-1" style={{
+            background: 'rgba(37,99,235,0.08)',
+            border: '1px solid rgba(37,99,235,0.2)',
+            padding: '5px 15px', borderRadius: '9999px',
+            fontSize: '11px', color: '#93c5fd', fontWeight: 600,
+            letterSpacing: '0.08em', textTransform: 'uppercase',
+            display: 'inline-flex', alignItems: 'center', gap: '7px',
             fontFamily: 'var(--font-display)',
+            backdropFilter: 'blur(8px)',
+            marginBottom: '28px',
           }}>
-            <ShieldCheck size={11} />
+            <ShieldCheck size={10} />
             Credify v1.0 &middot; Base Sepolia
           </span>
 
-          {/* Heading */}
-          <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3rem)', fontWeight: 800, lineHeight: 1.18, letterSpacing: '-0.03em', color: '#fff', margin: 0, fontFamily: 'var(--font-display)' }}>
+          {/* Main headline — fade in third */}
+          <h1 className="lp-fade-2" style={{
+            fontSize: 'clamp(2.4rem, 6vw, 3.8rem)',
+            fontWeight: 900, lineHeight: 1.12,
+            letterSpacing: '-0.04em', color: '#fff',
+            margin: '0 0 22px', fontFamily: 'var(--font-display)',
+          }}>
             Onchain Reputation,{' '}
-            <span style={{ background: 'linear-gradient(130deg, #60a5fa 0%, #818cf8 50%, #a78bfa 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+            <br />
+            <span style={{
+              background: 'linear-gradient(130deg, #60a5fa 0%, #818cf8 50%, #a78bfa 100%)',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+            }}>
               Without the Gas.
             </span>
           </h1>
 
-          {/* Body */}
-          <p style={{ fontSize: 'clamp(14px, 1.75vw, 15.5px)', color: 'rgba(255,255,255,0.52)', lineHeight: 1.75, maxWidth: '460px', margin: '0 auto', fontFamily: 'var(--font-body)', fontWeight: 400 }}>
+          {/* Subline — fade in fourth */}
+          <p className="lp-fade-3" style={{
+            fontSize: 'clamp(14.5px, 1.8vw, 16px)',
+            color: 'rgba(255,255,255,0.46)',
+            lineHeight: 1.8, maxWidth: '420px',
+            margin: '0 auto 44px',
+            fontFamily: 'var(--font-body)', fontWeight: 400,
+          }}>
             Issue and claim verifiable onchain badges for hackathons and events —
-            fully gasless via the Universal Gas Framework on Base Sepolia.
+            fully gasless via the Universal Gas Framework.
           </p>
 
-          {/* CTA row */}
-          <div style={{ marginTop: '6px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
+          {/* CTA row — fade in fifth */}
+          <div className="lp-fade-4" style={{
+            display: 'flex', gap: '14px', alignItems: 'center',
+            flexWrap: 'wrap', justifyContent: 'center',
+            marginBottom: '28px',
+          }}>
             <div className="get-started-btn-wrapper">
               <Link to="/home" onClick={handleGetStartedClick} className={`get-started-btn ${isClicked ? 'clicked' : ''}`}>
                 <div className="get-started-btn-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" height="22px" width="22px">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" height="20px" width="20px">
                     <path d="M800 480H160a32 32 0 1 0 0 64h640a32 32 0 1 0 0-64z" fill="#ffffff" />
                     <path d="m786.752 512-265.408 265.344a32 32 0 0 0 45.312 45.312l288-288a32 32 0 0 0 0-45.312l-288-288a32 32 0 1 0-45.312 45.312L786.752 512z" fill="#ffffff" />
                   </svg>
@@ -129,11 +167,24 @@ export default function LandingPage() {
             </button>
           </div>
 
-          <p style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.18)', margin: 0, fontFamily: 'var(--font-body)', letterSpacing: '0.02em' }}>
+          {/* Helper text — fade last */}
+          <p className="lp-fade-5" style={{
+            fontSize: '11.5px', color: 'rgba(255,255,255,0.15)',
+            margin: 0, fontFamily: 'var(--font-body)', letterSpacing: '0.04em',
+          }}>
             Zero ETH required &nbsp;&middot;&nbsp; Built on Base Sepolia
           </p>
         </div>
       </div>
+
+      {/* Soft separator */}
+      <div style={{
+        position: 'relative', zIndex: 3,
+        maxWidth: '560px', margin: '0 auto',
+        height: '1px',
+        background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.06) 30%, rgba(255,255,255,0.06) 70%, transparent)',
+        marginBottom: '80px',
+      }} />
 
       {/* ── For Organizers Section ── */}
       <div style={{ position: 'relative', zIndex: 3, padding: '0 20px 100px' }}>
@@ -245,6 +296,18 @@ export default function LandingPage() {
       <style>{`
         @keyframes lp-float-a { from { transform: translateY(0px) translateX(0px); } to { transform: translateY(-28px) translateX(18px); } }
         @keyframes lp-float-b { from { transform: translateY(0px) translateX(0px); } to { transform: translateY(22px) translateX(-14px); } }
+
+        @keyframes lp-fade-up {
+          from { opacity: 0; transform: translateY(22px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .lp-fade-0 { animation: lp-fade-up 0.7s cubic-bezier(0.22,1,0.36,1) 0.05s both; }
+        .lp-fade-1 { animation: lp-fade-up 0.7s cubic-bezier(0.22,1,0.36,1) 0.15s both; }
+        .lp-fade-2 { animation: lp-fade-up 0.8s cubic-bezier(0.22,1,0.36,1) 0.25s both; }
+        .lp-fade-3 { animation: lp-fade-up 0.8s cubic-bezier(0.22,1,0.36,1) 0.38s both; }
+        .lp-fade-4 { animation: lp-fade-up 0.8s cubic-bezier(0.22,1,0.36,1) 0.50s both; }
+        .lp-fade-5 { animation: lp-fade-up 0.8s cubic-bezier(0.22,1,0.36,1) 0.62s both; }
       `}</style>
 
       {/* ── Beginner's Guide Modal ── */}
