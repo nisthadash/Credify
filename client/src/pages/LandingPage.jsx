@@ -12,7 +12,6 @@ const ORGANIZER_FEATURES = [
 
 export default function LandingPage() {
   const navigate = useNavigate();
-  const [isClicked, setIsClicked] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [scrollY, setScrollY] = useState(0);
   const [organizersVisible, setOrganizersVisible] = useState(false);
@@ -41,12 +40,6 @@ export default function LandingPage() {
       observer.disconnect();
     };
   }, []);
-
-  const handleGetStartedClick = (e) => {
-    e.preventDefault();
-    setIsClicked(true);
-    setTimeout(() => { navigate('/home'); }, 500);
-  };
 
   return (
     <div style={{
@@ -183,7 +176,7 @@ export default function LandingPage() {
             marginBottom: '28px',
           }}>
             <div className="get-started-btn-wrapper">
-              <Link to="/home" onClick={handleGetStartedClick} className={`get-started-btn ${isClicked ? 'clicked' : ''}`}>
+              <Link to="/home" className="get-started-btn">
                 <div className="get-started-btn-icon">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" height="20px" width="20px">
                     <path d="M800 480H160a32 32 0 1 0 0 64h640a32 32 0 1 0 0-64z" fill="#ffffff" />
