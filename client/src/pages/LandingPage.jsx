@@ -28,15 +28,19 @@ export default function LandingPage() {
   }, []);
 
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
-  const heroEndScroll = vh * 0.6;
+  
+  // Slide 1 (Hero) fades out over the first 50% scroll range of vh
+  const heroEndScroll = vh * 0.5;
   const heroProgress = Math.min(1, Math.max(0, scrollY / (heroEndScroll || 1)));
   const heroOpacity = 1 - heroProgress;
   const heroTranslateY = -heroProgress * 80;
 
-  const organizerEndScroll = vh * 0.8;
-  const organizerProgress = Math.min(1, Math.max(0, scrollY / (organizerEndScroll || 1)));
-  const organizerContentOpacity = organizerProgress;
-  const organizerContentTranslateY = (1 - organizerProgress) * 100;
+  // Slide 2 (Organizer) fades and slides up starting at 20% scroll, fully locking in by 80% scroll
+  const slide2Start = vh * 0.2;
+  const slide2End = vh * 0.8;
+  const slide2Progress = Math.min(1, Math.max(0, (scrollY - slide2Start) / (slide2End - slide2Start || 1)));
+  const organizerContentOpacity = slide2Progress;
+  const organizerContentTranslateY = (1 - slide2Progress) * 120;
 
   return (
     <div style={{
@@ -79,8 +83,10 @@ export default function LandingPage() {
 
       {/* ── Hero section (Slide 1) ── */}
       <div style={{
-        position: 'sticky',
+        position: 'fixed',
         top: 0,
+        left: 0,
+        width: '100%',
         height: '100vh',
         zIndex: 1,
         display: 'flex',
@@ -209,7 +215,10 @@ export default function LandingPage() {
         style={{
           position: 'relative',
           zIndex: 2,
-          background: '#09090f',
+          marginTop: '100vh',
+          background: 'rgba(9, 9, 15, 0.82)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
           minHeight: '100vh',
           padding: '80px 20px 100px',
           borderTop: '1px solid rgba(255, 255, 255, 0.05)',
