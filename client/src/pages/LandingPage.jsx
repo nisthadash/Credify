@@ -14,7 +14,6 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const [showGuide, setShowGuide] = useState(false);
   const [scrollY, setScrollY] = useState(0);
-  const [organizersVisible, setOrganizersVisible] = useState(false);
   const organizersRef = useRef(null);
 
   useEffect(() => {
@@ -23,23 +22,21 @@ export default function LandingPage() {
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setOrganizersVisible(true);
-        }
-      },
-      { threshold: 0.08 }
-    );
-    if (organizersRef.current) {
-      observer.observe(organizersRef.current);
-    }
-
     return () => {
       window.removeEventListener('scroll', handleScroll);
-      observer.disconnect();
     };
   }, []);
+
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const heroEndScroll = vh * 0.6;
+  const heroProgress = Math.min(1, Math.max(0, scrollY / (heroEndScroll || 1)));
+  const heroOpacity = 1 - heroProgress;
+  const heroTranslateY = -heroProgress * 80;
+
+  const organizerEndScroll = vh * 0.8;
+  const organizerProgress = Math.min(1, Math.max(0, scrollY / (organizerEndScroll || 1)));
+  const organizerContentOpacity = organizerProgress;
+  const organizerContentTranslateY = (1 - organizerProgress) * 100;
 
   return (
     <div style={{
@@ -80,16 +77,23 @@ export default function LandingPage() {
         }} />
       </div>
 
-      {/* ── Hero section ── */}
+      {/* ── Hero section (Slide 1) ── */}
       <div style={{
-        position: 'relative', zIndex: 3,
-        minHeight: '100vh',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100vh',
+        zIndex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         padding: '80px 24px 60px',
-        opacity: Math.max(0, 1 - scrollY / 380),
-        transform: `translateY(${scrollY * 0.16}px)`,
-        transition: 'opacity 0.1s ease-out, transform 0.1s ease-out',
-        pointerEvents: scrollY > 300 ? 'none' : 'auto',
+        opacity: heroOpacity,
+        transform: `translateY(${heroTranslateY}px)`,
+        transition: 'opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1), transform 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
+        pointerEvents: heroOpacity < 0.1 ? 'none' : 'auto',
+        boxSizing: 'border-box',
       }}>
         {/* Soft radial glow under headline — not a box */}
         <div style={{
@@ -201,28 +205,40 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* Soft separator */}
-      <div style={{
-        position: 'relative', zIndex: 3,
-        maxWidth: '560px', margin: '0 auto',
-        height: '1px',
-        background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.06) 30%, rgba(255,255,255,0.06) 70%, transparent)',
-        marginBottom: '80px',
-      }} />
-
-      {/* ── For Organizers Section ── */}
+      {/* ── Slide 2: Next content section (Organizer) ── */}
       <div 
         ref={organizersRef}
-        style={{ 
-          position: 'relative', 
-          zIndex: 3, 
-          padding: '0 20px 100px',
-          opacity: organizersVisible ? 1 : 0,
-          transform: organizersVisible ? 'translateY(0)' : 'translateY(40px)',
-          transition: 'opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1)',
+        style={{
+          position: 'relative',
+          zIndex: 2,
+          marginTop: '100vh',
+          background: '#09090f',
+          minHeight: '100vh',
+          padding: '80px 20px 100px',
+          borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+          boxShadow: '0 -24px 60px rgba(0, 0, 0, 0.8)',
+          boxSizing: 'border-box',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
         }}
       >
-        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+        {/* Soft separator */}
+        <div style={{
+          maxWidth: '560px',
+          margin: '0 auto 60px',
+          height: '1px',
+          background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.06) 30%, rgba(255,255,255,0.06) 70%, transparent)',
+        }} />
+
+        {/* Cinematic Fade/Slide Content Wrapper */}
+        <div style={{
+          opacity: organizerContentOpacity,
+          transform: `translateY(${organizerContentTranslateY}px)`,
+          transition: 'opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+          width: '100%',
+        }}>
+          <div style={{ maxWidth: '900px', margin: '0 auto' }}>
 
           {/* Section header */}
           <div style={{ textAlign: 'center', marginBottom: '48px' }}>
@@ -325,6 +341,7 @@ export default function LandingPage() {
           </div>
         </div>
       </div>
+    </div>
 
       {/* Keyframe animations */}
       <style>{`
