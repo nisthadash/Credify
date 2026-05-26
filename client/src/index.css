@@ -264,8 +264,24 @@ h1, h2, h3, h4, h5, h6 {
   z-index: 10;
 }
 
-/* No glow, no halo — wrapper is just a positioning context */
-.get-started-btn-wrapper::before { display: none; }
+/* Subtle premium glow halo — matches the original design system */
+.get-started-btn-wrapper::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  background: linear-gradient(135deg, #2563eb 0%, #818cf8 55%, #a78bfa 100%);
+  border-radius: 14px;
+  z-index: -1;
+  opacity: 0.15;
+  filter: blur(10px);
+  transition: opacity 0.38s ease, filter 0.38s ease, transform 0.38s ease;
+}
+
+.get-started-btn-wrapper:hover::before {
+  opacity: 0.45;
+  filter: blur(14px);
+  transform: scale(1.02);
+}
 
 .get-started-btn {
   position: relative;
@@ -281,21 +297,21 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 16px;
   font-weight: 700;
   color: #0a0a0f;
-  border: 1.5px solid rgba(15, 15, 30, 0.8);
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  border: 1.5px solid rgba(37, 99, 235, 0.25);
+  box-shadow: 0 2px 12px rgba(37, 99, 235, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
   cursor: pointer;
   overflow: hidden;        /* pill stays clipped inside */
   text-decoration: none;
   z-index: 1;
-  transition: transform 0.3s cubic-bezier(0.22,1,0.36,1),
-              box-shadow 0.3s cubic-bezier(0.22,1,0.36,1),
-              border-color 0.3s ease;
+  transition: transform 0.38s cubic-bezier(0.22,1,0.36,1),
+              box-shadow 0.38s cubic-bezier(0.22,1,0.36,1),
+              border-color 0.38s ease;
 }
 
 .get-started-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.14);
-  border-color: rgba(37,99,235,0.55);
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.12), 0 2px 6px rgba(0,0,0,0.06);
+  border-color: rgba(37, 99, 235, 0.6);
 }
 
 .get-started-btn:active {
@@ -311,16 +327,15 @@ h1, h2, h3, h4, h5, h6 {
   /* Resting: just wide enough to hold the arrow */
   width: 44px;
   height: calc(100% - 8px);
-  background: linear-gradient(105deg, #1e40af 0%, #3b82f6 55%, #6366f1 100%);
-  border-radius: 9px;
-  /* Arrow lives inside and anchors to RIGHT edge of the pill */
+  background: linear-gradient(135deg, #2563eb 0%, #818cf8 55%, #a78bfa 100%);
+  border-radius: 10px;
+  /* Arrow lives inside and is centered */
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  padding-right: 10px;
+  justify-content: center;
   /* Expand rightward on hover */
-  transition: width 0.36s cubic-bezier(0.4, 0, 0.2, 1),
-              border-radius 0.36s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+              border-radius 0.38s cubic-bezier(0.22, 1, 0.36, 1);
   z-index: 2;
   overflow: hidden;
 }
@@ -328,17 +343,17 @@ h1, h2, h3, h4, h5, h6 {
 /* Pill expands to fill the shell (minus 4px inset on each side) */
 .get-started-btn:hover .get-started-btn-icon {
   width: calc(100% - 8px);
-  border-radius: 9px;
+  border-radius: 10px;
 }
 
-/* Arrow SVG — stays at right edge of pill as it expands */
+/* Arrow SVG — stays centered in the expanding pill */
 .get-started-btn-icon svg {
   flex-shrink: 0;
-  transition: transform 0.36s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .get-started-btn:hover .get-started-btn-icon svg {
-  transform: translateX(0); /* stays at right edge naturally */
+  transform: translateX(0);
 }
 
 /* ── Label text ── */
@@ -346,16 +361,16 @@ h1, h2, h3, h4, h5, h6 {
   position: relative;
   z-index: 3;
   /* Offset right to sit clear of the resting icon pill */
-  transform: translateX(12px);
+  transform: translateX(16px);
   color: #0a0a0f;
   transition: color 0.28s ease 0.04s,
-              transform 0.36s cubic-bezier(0.4, 0, 0.2, 1);
+              transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Text turns white and nudges slightly left as blue covers it */
+/* Text turns white and nudges left to balance the centered arrow */
 .get-started-btn:hover .get-started-btn-text {
   color: #ffffff;
-  transform: translateX(0px);
+  transform: translateX(-24px);
 }
 
 /* ── Click-exit animation ── */
@@ -381,6 +396,7 @@ h1, h2, h3, h4, h5, h6 {
   transition: transform 0.45s cubic-bezier(0.4,0,0.2,1),
               opacity 0.28s ease;
 }
+
 
 /* ── Cards ── */
 .card {
@@ -1457,14 +1473,14 @@ a, button, input, select, textarea,
   .get-started-btn:hover {
     transform: none !important;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
-    border-color: rgba(15,15,30,0.8) !important;
+    border-color: rgba(37, 99, 235, 0.25) !important;
   }
   .get-started-btn:hover .get-started-btn-icon {
     width: 44px !important;   /* keep pill at rest size on touch */
   }
   .get-started-btn:hover .get-started-btn-text {
     color: #0a0a0f !important;
-    transform: translateX(12px) !important;
+    transform: translateX(16px) !important;
   }
   .new-here-btn:hover {
     background: rgba(255, 255, 255, 0.03) !important;
