@@ -10,6 +10,11 @@ const ABI = [
         "name": "user",
         "type": "address"
       },
+      {
+        "internalType": "uint256",
+        "name": "eventId",
+        "type": "uint256"
+      }
     ],
     "name": "getCredential",
     "outputs": [
@@ -22,6 +27,11 @@ const ABI = [
         "internalType": "uint8",
         "name": "",
         "type": "uint8"
+      },
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       },
       {
         "internalType": "bool",
@@ -123,33 +133,45 @@ const getContractOwner = async () => {
  * Fetch onchain credential information for a given wallet address and event
  * @param {string} walletAddress 
  * @param {string} eventId
- * @returns {Promise<{tokenId: number, tier: number, hasClaimed: boolean}>}
+ * @returns {Promise<{tokenId: number, tier: number, hasClaimed: boolean, isRevoked: boolean}>}
  */
 const getOnchainCredential = async (walletAddress, eventId) => {
-  const contractAddress = process.env.CONTRACT_ADDRESS;
+  let contractAddress = process.env.CONTRACT_ADDRESS;
+
+  if (eventId) {
+    try {
+      const Event = require('../models/Event');
+      const event = await Event.findById(eventId);
+      if (event && event.contractAddress) {
+        contractAddress = event.contractAddress;
+      }
+    } catch (err) {
+      console.warn('[ContractService] Failed to load event contractAddress from DB:', err.message);
+    }
+  }
 
   // Graceful fallback if contract is not configured or dummy address is used
   if (!contractAddress || contractAddress === '0x0000000000000000000000000000000000000000') {
     console.log('[ContractService] Contract address not configured. Returning default/mock state.');
-    return { tokenId: 0, tier: 0, hasClaimed: false, isMock: true };
+    return { tokenId: 0, tier: 0, hasClaimed: false, isRevoked: false, isMock: true };
   }
 
   try {
     const client = getPublicClient();
+    const eventIdBigInt = BigInt('0x' + eventId);
     
-    // Current deployed CredifyBadge is wallet-scoped onchain. The eventId is
-    // still used by MongoDB records, but not by this deployed contract ABI.
     const result = await client.readContract({
       address: contractAddress,
       abi: ABI,
       functionName: 'getCredential',
-      args: [walletAddress]
+      args: [walletAddress, eventIdBigInt]
     });
 
     return {
       tokenId: Number(result[0]),
       tier: Number(result[1]),
       hasClaimed: result[2],
+      isRevoked: result[3],
       isMock: false
     };
   } catch (error) {
@@ -164,7 +186,17 @@ const getOnchainCredential = async (walletAddress, eventId) => {
  * @returns {Promise<string>}
  */
 const getOnchainTokenUri = async (tokenId) => {
-  const contractAddress = process.env.CONTRACT_ADDRESS;
+  let contractAddress = process.env.CONTRACT_ADDRESS;
+
+  try {
+    const Credential = require('../models/Credential');
+    const cred = await Credential.findOne({ tokenId }).populate('eventId');
+    if (cred && cred.eventId && cred.eventId.contractAddress) {
+      contractAddress = cred.eventId.contractAddress;
+    }
+  } catch (err) {
+    console.warn('[ContractService] Failed to load event contractAddress for tokenURI check:', err.message);
+  }
 
   if (!contractAddress || contractAddress === '0x0000000000000000000000000000000000000000') {
     return 'ipfs://mock-uri';

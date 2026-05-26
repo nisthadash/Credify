@@ -4,7 +4,9 @@ const {
   generateApiKey, 
   listApiKeys, 
   revokeApiKey, 
-  webhookAddToWhitelist 
+  webhookAddToWhitelist,
+  webhookLumaSync,
+  webhookDevpostSync
 } = require('../controllers/webhookController');
 const { protect, organizerOnly } = require('../middleware/authMiddleware');
 
@@ -18,5 +20,7 @@ router.route('/keys/:keyId')
 
 // Webhook Endpoints (Public, auth via x-api-key)
 router.post('/whitelist/:eventId', webhookAddToWhitelist);
+router.post('/luma/:eventId', webhookLumaSync);
+router.post('/devpost/:eventId', webhookDevpostSync);
 
 module.exports = router;

@@ -66,7 +66,7 @@ const getEventById = async (req, res, next) => {
  */
 const updateEvent = async (req, res, next) => {
   try {
-    const { title, description, date, claimOpen, tiers } = req.body;
+    const { title, description, date, claimOpen, tiers, contractAddress } = req.body;
 
     let event = await Event.findById(req.params.id);
     if (!event) {
@@ -84,6 +84,7 @@ const updateEvent = async (req, res, next) => {
     if (date) event.date = new Date(date);
     if (claimOpen !== undefined) event.claimOpen = claimOpen;
     if (tiers) event.tiers = tiers;
+    if (contractAddress !== undefined) event.contractAddress = contractAddress;
 
     const updatedEvent = await event.save();
     return response.success(res, updatedEvent, 'Event updated successfully');

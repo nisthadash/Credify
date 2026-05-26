@@ -50,10 +50,9 @@ export function useUGFClaim() {
         // Step 2 — Settle
         setUgfStep('settling');
 
-        // The currently deployed CredifyBadge contract is wallet-scoped onchain;
-        // event scoping remains in the backend metadata and database records.
         const iface = new Interface(ABI);
-        const txData = iface.encodeFunctionData('claimPass', [initData.metadataUri]);
+        const eventIdBigInt = BigInt('0x' + eventId);
+        const txData = iface.encodeFunctionData('claimPass', [eventIdBigInt, initData.metadataUri]);
 
         const tx = {
           to: CONTRACT_ADDRESS,
@@ -105,7 +104,7 @@ export function useUGFClaim() {
           address: CONTRACT_ADDRESS,
           abi: ABI,
           functionName: 'getCredential',
-          args: [claimAddress]
+          args: [claimAddress, BigInt('0x' + activeEventId)]
         });
 
         const tokenId = Number(credentialInfo[0]);

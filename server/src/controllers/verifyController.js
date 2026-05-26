@@ -1,6 +1,7 @@
 const Credential = require('../models/Credential');
 const VerificationLog = require('../models/VerificationLog');
 const contractService = require('../services/contractService');
+const Event = require('../models/Event');
 const response = require('../utils/response');
 
 /**
@@ -25,7 +26,11 @@ const verifyByTokenId = async (req, res, next) => {
     let onchainTokenUri = '';
     let isMock = true;
 
-    const contractAddress = process.env.CONTRACT_ADDRESS;
+    let contractAddress = process.env.CONTRACT_ADDRESS;
+    if (credential && credential.eventId && credential.eventId.contractAddress) {
+      contractAddress = credential.eventId.contractAddress;
+    }
+
     if (contractAddress && contractAddress !== '0x0000000000000000000000000000000000000000') {
       try {
         const publicClient = require('../services/contractService');
@@ -115,12 +120,85 @@ const verifyByWallet = async (req, res, next) => {
     // 1. Fetch off-chain credentials cached in database
     const credentials = await Credential.find({ walletAddress: walletLower }).populate('eventId', 'title description date');
 
-    // 2. Fetch live state onchain for this wallet
-    const onchainInfo = await contractService.getOnchainCredential(walletLower);
+    // 2. Fetch live state onchain for this wallet (scoped by event)
+    const results = [];
+    let hasOnchainRecord = false;
+    const allEvents = await Event.find({});
 
-    const hasLocalRecord = credentials.length > 0;
-    const hasOnchainRecord = onchainInfo.hasClaimed;
-    const exists = hasLocalRecord || hasOnchainRecord;
+    for (const event of allEvents) {
+      const eventIdStr = event._id.toString();
+      try {
+        const onchainInfo = await contractService.getOnchainCredential(walletLower, eventIdStr);
+        if (onchainInfo && onchainInfo.hasClaimed && !onchainInfo.isMock) {
+          hasOnchainRecord = true;
+          const matchingCred = credentials.find(c => {
+            const cEventId = typeof c.eventId === 'object' ? c.eventId?._id.toString() : c.eventId.toString();
+            return cEventId === eventIdStr;
+          });
+
+          if (matchingCred) {
+            const isUpToDate = onchainInfo.tokenId === matchingCred.tokenId;
+            results.push({
+              tokenId: matchingCred.tokenId,
+              verified: isUpToDate,
+              eventName: matchingCred.eventId ? matchingCred.eventId.title : 'Credify Event',
+              eventDescription: matchingCred.eventId ? matchingCred.eventId.description : '',
+              eventDate: matchingCred.eventId ? matchingCred.eventId.date : null,
+              tier: matchingCred.tier,
+              txHash: matchingCred.txHash,
+              metadataUri: matchingCred.metadataUri,
+              onchain: {
+                tokenId: onchainInfo.tokenId,
+                tierLevel: onchainInfo.tier,
+                isMock: false
+              }
+            });
+          } else {
+            results.push({
+              tokenId: onchainInfo.tokenId,
+              verified: true,
+              eventName: event.title,
+              eventDescription: event.description,
+              eventDate: event.date,
+              tier: onchainInfo.tier === 0 ? 'event pass' : `tier ${onchainInfo.tier}`,
+              txHash: 'onchain-only',
+              metadataUri: 'onchain-only',
+              onchain: {
+                tokenId: onchainInfo.tokenId,
+                tierLevel: onchainInfo.tier,
+                isMock: false
+              }
+            });
+          }
+        }
+      } catch (err) {
+        console.warn(`[VerifyController] Error checking onchain credentials for ${walletLower} on event ${eventIdStr}:`, err.message);
+      }
+    }
+
+    // Include DB-only credentials (which may be Mock-mode or not synced onchain yet)
+    for (const cred of credentials) {
+      const alreadyAdded = results.some(r => r.tokenId === cred.tokenId);
+      if (!alreadyAdded) {
+        results.push({
+          tokenId: cred.tokenId,
+          verified: true,
+          eventName: cred.eventId ? cred.eventId.title : 'Credify Event',
+          eventDescription: cred.eventId ? cred.eventId.description : '',
+          eventDate: cred.eventId ? cred.eventId.date : null,
+          tier: cred.tier,
+          txHash: cred.txHash,
+          metadataUri: cred.metadataUri,
+          onchain: {
+            tokenId: cred.tokenId,
+            tierLevel: undefined,
+            isMock: true
+          }
+        });
+      }
+    }
+
+    const exists = results.length > 0;
 
     // 3. Log the verification action
     await VerificationLog.create({
@@ -131,42 +209,6 @@ const verifyByWallet = async (req, res, next) => {
 
     if (!exists) {
       return response.error(res, `No credentials found for wallet address: ${wallet}`, 404);
-    }
-
-    const results = credentials.map(cred => {
-      const isUpToDate = onchainInfo.isMock || (onchainInfo.tokenId === cred.tokenId);
-      return {
-        tokenId: cred.tokenId,
-        verified: isUpToDate,
-        eventName: cred.eventId ? cred.eventId.title : 'Credify Event',
-        eventDescription: cred.eventId ? cred.eventId.description : '',
-        eventDate: cred.eventId ? cred.eventId.date : null,
-        tier: cred.tier,
-        txHash: cred.txHash,
-        metadataUri: cred.metadataUri,
-        onchain: {
-          tokenId: onchainInfo.isMock ? cred.tokenId : onchainInfo.tokenId,
-          tierLevel: onchainInfo.isMock ? undefined : onchainInfo.tier,
-          isMock: onchainInfo.isMock
-        }
-      };
-    });
-
-    // Handle onchain records that are missing locally (fallback)
-    if (hasOnchainRecord && !hasLocalRecord) {
-      results.push({
-        tokenId: onchainInfo.tokenId,
-        verified: true,
-        eventName: 'Onchain Credential',
-        tier: onchainInfo.tier === 0 ? 'event pass' : `tier ${onchainInfo.tier}`,
-        txHash: 'onchain-only',
-        metadataUri: 'onchain-only',
-        onchain: {
-          tokenId: onchainInfo.tokenId,
-          tierLevel: onchainInfo.tier,
-          isMock: false
-        }
-      });
     }
 
     return response.success(res, {

@@ -57,7 +57,7 @@ export default function OrganizerDashboardPage() {
   const [whitelistMode, setWhitelistMode] = useState('single');
 
   // Tab View
-  const [activeTab, setActiveTab] = useState('roster'); // 'roster' | 'upgrades' | 'analytics' | 'studio' | 'webhooks'
+  const [activeTab, setActiveTab] = useState('roster'); // 'roster' | 'upgrades' | 'analytics' | 'studio' | 'webhooks' | 'settings'
 
   // Web3 States
   const { address: connectedAddress, isConnected } = useAccount();
@@ -72,6 +72,10 @@ export default function OrganizerDashboardPage() {
   const [checkingOnchainMap, setCheckingOnchainMap] = useState(false);
   const [syncingWallet, setSyncingWallet] = useState(null);
 
+  const activeContractAddress = (activeEvent && activeEvent.contractAddress)
+    ? activeEvent.contractAddress
+    : CONTRACT_ADDRESS;
+
   const canWriteOnchain = Boolean(
     signer &&
     connectedAddress &&
@@ -79,8 +83,8 @@ export default function OrganizerDashboardPage() {
     connectedAddress.toLowerCase() === contractOwner.toLowerCase()
   );
 
-  const checkOnchainEligibility = async (participantsList) => {
-    if (!participantsList || participantsList.length === 0) return;
+  const checkOnchainEligibility = async (participantsList, eventId = activeEvent?._id) => {
+    if (!participantsList || participantsList.length === 0 || !eventId) return;
     setCheckingOnchainMap(true);
     try {
       const publicClient = createPublicClient({
@@ -88,15 +92,16 @@ export default function OrganizerDashboardPage() {
         transport: http('https://sepolia.base.org')
       });
       
+      const eventIdBigInt = BigInt('0x' + eventId);
       const map = {};
       await Promise.all(
         participantsList.map(async (p) => {
           try {
             const isEligible = await publicClient.readContract({
-              address: CONTRACT_ADDRESS,
+              address: activeContractAddress,
               abi: ABI,
               functionName: 'isEligible',
-              args: [p.walletAddress]
+              args: [p.walletAddress, eventIdBigInt]
             });
             map[p.walletAddress.toLowerCase()] = isEligible;
           } catch (err) {
@@ -114,16 +119,17 @@ export default function OrganizerDashboardPage() {
   };
 
   const handleSyncSingleOnchain = async (walletAddress) => {
-    if (!canWriteOnchain) {
+    if (!canWriteOnchain || !activeEvent) {
       showToast('Connect the contract owner wallet in Web3 Console first.');
       return;
     }
     
     setSyncingWallet(walletAddress);
     try {
-      const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
+      const contract = new Contract(activeContractAddress, ABI, signer);
       showToast(`Please confirm the whitelist transaction for ${walletAddress.substring(0, 6)}... in your wallet.`);
-      const tx = await contract.addEligible(walletAddress);
+      const eventIdBigInt = BigInt('0x' + activeEvent._id);
+      const tx = await contract.addEligible(walletAddress, eventIdBigInt);
       showToast('Transaction sent! Waiting for block confirmation...');
       await tx.wait();
       showToast(`Successfully whitelisted ${walletAddress.substring(0, 6)}... on-chain!`);
@@ -142,7 +148,7 @@ export default function OrganizerDashboardPage() {
   const unsyncedParticipants = participants.filter(p => p.tokenId === null && !onchainEligibleMap[p.walletAddress.toLowerCase()]);
 
   const handleSyncAllOnchain = async () => {
-    if (!canWriteOnchain) {
+    if (!canWriteOnchain || !activeEvent) {
       showToast('Connect the contract owner wallet in Web3 Console first.');
       return;
     }
@@ -151,12 +157,13 @@ export default function OrganizerDashboardPage() {
     const walletsToSync = unsyncedParticipants.map(p => p.walletAddress);
     showToast(`Syncing ${walletsToSync.length} wallets on-chain...`);
     try {
-      const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
+      const contract = new Contract(activeContractAddress, ABI, signer);
+      const eventIdBigInt = BigInt('0x' + activeEvent._id);
       let tx;
       if (walletsToSync.length === 1) {
-        tx = await contract.addEligible(walletsToSync[0]);
+        tx = await contract.addEligible(walletsToSync[0], eventIdBigInt);
       } else {
-        tx = await contract.addEligibleBulk(walletsToSync);
+        tx = await contract.addEligibleBulk(walletsToSync, eventIdBigInt);
       }
       showToast('Bulk transaction sent! Waiting for block confirmation...');
       await tx.wait();
@@ -173,25 +180,30 @@ export default function OrganizerDashboardPage() {
     }
   };
 
-  const syncWhitelistOnchain = async (wallets) => {
-    if (!canWriteOnchain) {
+  const syncWhitelistOnchain = async (wallets, eventId = activeEvent?._id) => {
+    if (!canWriteOnchain || !eventId) {
       return { synced: false, reason: 'owner-not-connected' };
     }
 
-    const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
+    const contract = new Contract(activeContractAddress, ABI, signer);
+    const eventIdBigInt = BigInt('0x' + eventId);
 
     if (wallets.length === 1) {
-      const tx = await contract.addEligible(wallets[0]);
+      const tx = await contract.addEligible(wallets[0], eventIdBigInt);
       await tx.wait();
       return { synced: true };
     }
 
-    const tx = await contract.addEligibleBulk(wallets);
+    const tx = await contract.addEligibleBulk(wallets, eventIdBigInt);
     await tx.wait();
     return { synced: true };
   };
 
   const checkContractOwner = async () => {
+    if (!activeContractAddress || activeContractAddress === '0x0000000000000000000000000000000000000000') {
+      setContractOwner('');
+      return;
+    }
     setCheckingOwner(true);
     try {
       const publicClient = createPublicClient({
@@ -199,13 +211,14 @@ export default function OrganizerDashboardPage() {
         transport: http('https://sepolia.base.org')
       });
       const ownerAddress = await publicClient.readContract({
-        address: CONTRACT_ADDRESS,
+        address: activeContractAddress,
         abi: ABI,
         functionName: 'owner'
       });
       setContractOwner(ownerAddress);
     } catch (err) {
       console.error('Error fetching contract owner:', err);
+      setContractOwner('');
     } finally {
       setCheckingOwner(false);
     }
@@ -213,7 +226,7 @@ export default function OrganizerDashboardPage() {
 
   useEffect(() => {
     checkContractOwner();
-  }, []);
+  }, [activeContractAddress]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
 
@@ -267,7 +280,7 @@ export default function OrganizerDashboardPage() {
       if (data && data.success) {
         const list = data.data || [];
         setParticipants(list);
-        checkOnchainEligibility(list);
+        checkOnchainEligibility(list, eventId);
       }
     } catch (err) {
       console.error('Error fetching participants:', err);
@@ -329,7 +342,7 @@ export default function OrganizerDashboardPage() {
       });
       if (data && data.success) {
         try {
-          const onchain = await syncWhitelistOnchain([cleanAddress]);
+          const onchain = await syncWhitelistOnchain([cleanAddress], activeEvent._id);
           showToast(
             onchain.synced
               ? 'Wallet whitelisted in database and on-chain!'
@@ -386,7 +399,7 @@ export default function OrganizerDashboardPage() {
 
         if (data && data.success) {
           try {
-            const onchain = await syncWhitelistOnchain(validWallets);
+            const onchain = await syncWhitelistOnchain(validWallets, activeEvent._id);
             showToast(
               onchain.synced
                 ? `Whitelisted ${validWallets.length} addresses in database and on-chain!`
@@ -424,7 +437,7 @@ export default function OrganizerDashboardPage() {
     }
     const nextTier = currentTier + 1;
 
-    const hasContract = CONTRACT_ADDRESS && CONTRACT_ADDRESS !== '0x0000000000000000000000000000000000000000';
+    const hasContract = activeContractAddress && activeContractAddress !== '0x0000000000000000000000000000000000000000';
 
     if (!hasContract) {
       // Fallback: DB-only upgrade
@@ -470,7 +483,7 @@ export default function OrganizerDashboardPage() {
 
     setUpgradingWallet(participant.walletAddress);
     try {
-      const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
+      const contract = new Contract(activeContractAddress, ABI, signer);
       // Generate the metadata URI pointing to the backend
       const protocol = window.location.protocol;
       const host = window.location.host;
@@ -479,7 +492,8 @@ export default function OrganizerDashboardPage() {
       console.log(`[On-chain Upgrade] Upgrading wallet ${participant.walletAddress} to tier ${nextTier} with URI ${metadataUri}`);
       
       showToast(`Please confirm the upgrade to ${TIER_NAMES[nextTier]} in your wallet...`);
-      const tx = await contract.upgradeTier(participant.walletAddress, nextTier, metadataUri);
+      const eventIdBigInt = BigInt('0x' + activeEvent._id);
+      const tx = await contract.upgradeTier(participant.walletAddress, eventIdBigInt, nextTier, metadataUri);
       console.log('[On-chain Upgrade] Transaction sent:', tx.hash);
       
       showToast(`Transaction sent! Waiting for block confirmation...`);
@@ -517,7 +531,7 @@ export default function OrganizerDashboardPage() {
     }
 
     if (window.confirm(`Are you sure you want to revoke the credential for ${participant.walletAddress}? This cannot be undone.`)) {
-      const hasContract = CONTRACT_ADDRESS && CONTRACT_ADDRESS !== '0x0000000000000000000000000000000000000000';
+      const hasContract = activeContractAddress && activeContractAddress !== '0x0000000000000000000000000000000000000000';
 
       if (!hasContract) {
         // Fallback: DB-only revocation
@@ -563,7 +577,7 @@ export default function OrganizerDashboardPage() {
 
       setIsRevokingWallet(participant.walletAddress);
       try {
-        const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
+        const contract = new Contract(activeContractAddress, ABI, signer);
         
         console.log(`[On-chain Revocation] Revoking wallet ${participant.walletAddress} on event ${activeEvent._id}`);
         
@@ -883,6 +897,19 @@ export default function OrganizerDashboardPage() {
                 >
                   <Zap size={13} /> Webhooks & API
                 </button>
+                <button 
+                  onClick={() => setActiveTab('settings')} 
+                  style={{ 
+                    background: 'transparent', border: 'none', 
+                    borderBottom: activeTab === 'settings' ? '2.5px solid var(--primary)' : '2.5px solid transparent',
+                    color: activeTab === 'settings' ? '#fff' : 'var(--text-muted)', 
+                    fontWeight: 700, paddingBottom: '6px', cursor: 'pointer', fontSize: '14px',
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Sliders size={13} /> Settings
+                </button>
               </div>
               <span style={{ fontSize: '12px', color: 'var(--text-subtle)' }}>{participants.length} whitelisted</span>
             </div>
@@ -1167,6 +1194,70 @@ export default function OrganizerDashboardPage() {
 
             {activeTab === 'webhooks' && (
               <WebhookPanel eventId={activeEvent._id} />
+            )}
+
+            {activeTab === 'settings' && (
+              <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Sliders size={17} style={{ color: 'var(--primary)' }} /> Event Settings
+                  </h3>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Configure event-specific registry settings and smart contracts.</p>
+                </div>
+
+                <div className="card" style={{ padding: '24px', maxWidth: '600px' }}>
+                  <h4 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '12px' }}>Custom Smart Contract Address</h4>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '20px', lineHeight: '1.5' }}>
+                    By default, Credify uses the global registry to store credentials. If you have deployed your own custom CredifyBadge contract, enter its address below to route all mints, whitelists, and updates to your contract.
+                  </p>
+                  
+                  <form onSubmit={async (e) => {
+                    e.preventDefault();
+                    const inputAddr = e.target.elements.customContract.value.trim();
+                    
+                    if (inputAddr && !/^0x[a-fA-F0-9]{40}$/.test(inputAddr)) {
+                      showToast('Please enter a valid Ethereum address.');
+                      return;
+                    }
+                    
+                    try {
+                      const data = await apiFetch(`/events/${activeEvent._id}`, {
+                        method: 'PATCH',
+                        body: JSON.stringify({
+                          contractAddress: inputAddr || null
+                        })
+                      });
+                      
+                      if (data && data.success) {
+                        showToast('Contract address updated successfully!');
+                        // Update local states
+                        const updatedEvent = data.data;
+                        setActiveEvent(updatedEvent);
+                        setEvents(prev => prev.map(ev => ev._id === updatedEvent._id ? updatedEvent : ev));
+                      } else {
+                        showToast(data.message || 'Failed to update contract address.');
+                      }
+                    } catch (err) {
+                      console.error('Update contract address error:', err);
+                      showToast('Connection error. Could not update contract address.');
+                    }
+                  }} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '6px' }}>Contract Address (Base Sepolia)</label>
+                      <input 
+                        type="text" 
+                        name="customContract" 
+                        className="input-field input-mono" 
+                        style={{ fontSize: '12px' }} 
+                        defaultValue={activeEvent.contractAddress || ''}
+                        key={activeEvent._id + '-' + (activeEvent.contractAddress || 'none')}
+                        placeholder={`Leave empty to use global fallback: ${CONTRACT_ADDRESS}`} 
+                      />
+                    </div>
+                    <button type="submit" className="btn btn-primary" style={{ alignSelf: 'flex-start' }}>Save Settings</button>
+                  </form>
+                </div>
+              </div>
             )}
           </div>
         )}

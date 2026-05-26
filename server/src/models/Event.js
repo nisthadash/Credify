@@ -23,6 +23,12 @@ const eventSchema = new mongoose.Schema({
     type: Boolean, 
     default: true 
   },
+  contractAddress: {
+    type: String,
+    lowercase: true,
+    trim: true,
+    default: null
+  },
   tiers: { 
     type: [String], 
     default: ['pass', 'participant', 'finalist', 'winner', 'mentor'] 

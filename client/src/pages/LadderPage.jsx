@@ -42,7 +42,7 @@ export default function LadderPage() {
   const [whitelisting, setWhitelisting] = useState(false);
 
   const checkOnchainStatus = async () => {
-    if (!address) return;
+    if (!address || !eventId) return;
     setCheckingOnchain(true);
     try {
       const publicClient = createPublicClient({
@@ -57,11 +57,13 @@ export default function LadderPage() {
       });
       setContractOwner(ownerAddress);
 
+      const eventIdBigInt = BigInt('0x' + eventId);
+
       const isUserEligible = await publicClient.readContract({
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'isEligible',
-        args: [address]
+        args: [address, eventIdBigInt]
       });
       setOnchainEligible(isUserEligible);
 
@@ -69,7 +71,7 @@ export default function LadderPage() {
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'getCredential',
-        args: [address]
+        args: [address, eventIdBigInt]
       });
       setOnchainClaimed(credentialInfo[2]); // Third index is claimed (bool)
       console.log('[Onchain Check] Owner:', ownerAddress, 'User:', address, 'Eligible:', isUserEligible, 'Claimed:', credentialInfo[2]);
@@ -81,12 +83,13 @@ export default function LadderPage() {
   };
 
   const handleWhitelistOnchain = async () => {
-    if (!signer || !address) return;
+    if (!signer || !address || !eventId) return;
     setWhitelisting(true);
     try {
       const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
-      console.log('[Onchain Whitelist] Sending addEligible transaction for:', address);
-      const tx = await contract.addEligible(address);
+      const eventIdBigInt = BigInt('0x' + eventId);
+      console.log('[Onchain Whitelist] Sending addEligible transaction for:', address, 'event:', eventId);
+      const tx = await contract.addEligible(address, eventIdBigInt);
       console.log('[Onchain Whitelist] Transaction sent:', tx.hash);
       
       // Wait for 1 confirmation
@@ -105,14 +108,14 @@ export default function LadderPage() {
   };
 
   useEffect(() => {
-    if (isConnected && address) {
+    if (isConnected && address && eventId) {
       checkOnchainStatus();
-    } else {
+    } else if (!isConnected || !address) {
       setContractOwner('');
       setOnchainEligible(false);
       setOnchainClaimed(false);
     }
-  }, [address, isConnected]);
+  }, [address, isConnected, eventId]);
 
   const [loadingCredentials, setLoadingCredentials] = useState(false);
   const [simulateApproval, setSimulateApproval] = useState(false);

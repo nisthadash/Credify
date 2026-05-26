@@ -91,11 +91,13 @@ export default function ClaimPage() {
       });
       setContractOwner(ownerAddress);
 
+      const eventIdBigInt = BigInt('0x' + selectedEventId);
+
       const isUserEligible = await publicClient.readContract({
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'isEligible',
-        args: [address]
+        args: [address, eventIdBigInt]
       });
       setOnchainEligible(isUserEligible);
 
@@ -103,7 +105,7 @@ export default function ClaimPage() {
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'getCredential',
-        args: [address]
+        args: [address, eventIdBigInt]
       });
       setOnchainClaimed(credentialInfo[2]); // Third index is claimed (bool)
       console.log('[ClaimPage Onchain Check] Owner:', ownerAddress, 'User:', address, 'Eligible:', isUserEligible, 'Claimed:', credentialInfo[2]);
@@ -119,8 +121,9 @@ export default function ClaimPage() {
     setWhitelisting(true);
     try {
       const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
+      const eventIdBigInt = BigInt('0x' + selectedEventId);
       console.log('[ClaimPage Onchain Whitelist] Sending addEligible transaction for:', address, 'event:', selectedEventId);
-      const tx = await contract.addEligible(address);
+      const tx = await contract.addEligible(address, eventIdBigInt);
       console.log('[ClaimPage Onchain Whitelist] Transaction sent:', tx.hash);
 
       // Wait for 1 confirmation
@@ -156,6 +159,11 @@ export default function ClaimPage() {
   });
 
   const isAlreadyClaimedForEvent = hasClaimedThisEvent || onchainClaimed;
+
+  const activeEvent = events.find(e => e._id === selectedEventId);
+  const formattedDate = activeEvent
+    ? new Date(activeEvent.date).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
+    : EVENT.date;
 
   const handleClaim = async () => {
     if (!onchainEligible) {
@@ -197,6 +205,54 @@ export default function ClaimPage() {
           {/* LEFT */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
+            {/* Select Hackathon Event */}
+            {events.length > 0 && (
+              <div className="card animate-fade-up" style={{ padding: '20px 24px' }}>
+                <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-subtle)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, fontFamily: 'var(--font-display)' }}>
+                  Select Hackathon Event
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <select
+                    value={selectedEventId || ''}
+                    onChange={(e) => setSelectedEventId(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      background: 'rgba(0, 0, 0, 0.2)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      color: '#fff',
+                      fontSize: '14px',
+                      outline: 'none',
+                      cursor: 'pointer',
+                      appearance: 'none',
+                      fontFamily: 'inherit',
+                      transition: 'border-color var(--t)'
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = 'var(--primary)'}
+                    onBlur={(e) => e.target.style.borderColor = 'var(--border)'}
+                  >
+                    {events.map((ev) => (
+                      <option key={ev._id} value={ev._id} style={{ background: '#12131a', color: '#fff' }}>
+                        {ev.title}
+                      </option>
+                    ))}
+                  </select>
+                  <div style={{
+                    position: 'absolute',
+                    right: '16px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    pointerEvents: 'none',
+                    color: 'var(--text-subtle)',
+                    fontSize: '10px'
+                  }}>
+                    ▼
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Event card */}
             <div className="card animate-fade-up" style={{ padding: '24px' }}>
               <p style={{ fontSize: '11px', color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, fontFamily: 'var(--font-display)', marginBottom: '20px' }}>
@@ -204,7 +260,7 @@ export default function ClaimPage() {
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
                 <Row label="Event" value={eventTitle || EVENT.name} />
-                <Row label="Date" value={EVENT.date} />
+                <Row label="Date" value={formattedDate} />
                 <Row label="Tier" value={<span style={{ color: '#93c5fd', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}><Ticket size={13} /> {EVENT.tier} (Tier 0)</span>} />
                 {isConnected && checked && (
                   <Row label="Eligibility" value={
@@ -389,7 +445,7 @@ export default function ClaimPage() {
                   <p style={{ fontSize: '20px', fontWeight: 700, fontFamily: 'var(--font-display)', marginBottom: 6 }}>
                     {eventTitle || EVENT.name}
                   </p>
-                  <p style={{ fontSize: '13px', color: 'var(--text-subtle)' }}>{EVENT.date}</p>
+                  <p style={{ fontSize: '13px', color: 'var(--text-subtle)' }}>{formattedDate}</p>
                 </div>
                 <div style={{
                   borderTop: '1px solid var(--border)', paddingTop: 16,

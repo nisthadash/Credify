@@ -2,7 +2,23 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const Event = require('../models/Event');
 const Eligibility = require('../models/Eligibility');
+const Credential = require('../models/Credential');
 const response = require('../utils/response');
+
+// Helper to recursively find a wallet address in any object
+const findWalletAddress = (obj) => {
+  if (typeof obj === 'string') {
+    const match = obj.trim().match(/^0x[a-fA-F0-9]{40}$/);
+    if (match) return match[0].toLowerCase();
+  }
+  if (typeof obj === 'object' && obj !== null) {
+    for (const key in obj) {
+      const found = findWalletAddress(obj[key]);
+      if (found) return found;
+    }
+  }
+  return null;
+};
 
 /**
  * @desc    Generate a new API key for the organizer
@@ -145,9 +161,136 @@ const webhookAddToWhitelist = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Luma webhook handler to whitelist attendee wallets
+ * @route   POST /api/webhooks/luma/:eventId
+ * @access  Public (x-api-key)
+ */
+const webhookLumaSync = async (req, res, next) => {
+  try {
+    const { eventId } = req.params;
+    const apiKey = req.headers['x-api-key'];
+
+    if (!apiKey) {
+      return response.error(res, 'Missing x-api-key header', 401);
+    }
+
+    const walletAddress = findWalletAddress(req.body);
+    if (!walletAddress) {
+      return response.error(res, 'No valid wallet address found in webhook payload', 400);
+    }
+
+    const user = await User.findOne({ 'apiKeys.key': apiKey });
+    if (!user) {
+      return response.error(res, 'Invalid API key', 401);
+    }
+
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return response.error(res, 'Event not found', 404);
+    }
+
+    if (event.organizerId.toString() !== user._id.toString()) {
+      return response.error(res, 'API key does not have permission for this event', 403);
+    }
+
+    const existing = await Eligibility.findOne({ walletAddress, eventId });
+    if (existing) {
+      if (!existing.approved) {
+        existing.approved = true;
+        await existing.save();
+      }
+      return response.success(res, existing, 'Wallet already whitelisted');
+    }
+
+    const eligibility = await Eligibility.create({
+      walletAddress,
+      eventId,
+      approved: true
+    });
+
+    return response.success(res, eligibility, 'Attendee whitelisted from Luma successfully', 201);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Devpost webhook handler to whitelist/upgrade participant credentials
+ * @route   POST /api/webhooks/devpost/:eventId
+ * @access  Public (x-api-key)
+ */
+const webhookDevpostSync = async (req, res, next) => {
+  try {
+    const { eventId } = req.params;
+    const apiKey = req.headers['x-api-key'];
+
+    if (!apiKey) {
+      return response.error(res, 'Missing x-api-key header', 401);
+    }
+
+    const walletAddress = findWalletAddress(req.body);
+    if (!walletAddress) {
+      return response.error(res, 'No valid wallet address found in webhook payload', 400);
+    }
+
+    const user = await User.findOne({ 'apiKeys.key': apiKey });
+    if (!user) {
+      return response.error(res, 'Invalid API key', 401);
+    }
+
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return response.error(res, 'Event not found', 404);
+    }
+
+    if (event.organizerId.toString() !== user._id.toString()) {
+      return response.error(res, 'API key does not have permission for this event', 403);
+    }
+
+    // Whitelist in DB if not already done
+    let eligibility = await Eligibility.findOne({ walletAddress, eventId });
+    if (!eligibility) {
+      eligibility = await Eligibility.create({
+        walletAddress,
+        eventId,
+        approved: true
+      });
+    } else if (!eligibility.approved) {
+      eligibility.approved = true;
+      await eligibility.save();
+    }
+
+    // Check if they already claimed their event pass (Tier 0). If so, auto-upgrade to Participant (Tier 1)
+    const credential = await Credential.findOne({ walletAddress, eventId });
+    let upgraded = false;
+    if (credential && credential.tier === 'pass') {
+      credential.tier = 'participant';
+      credential.status = 'upgraded';
+      
+      const protocol = req.protocol;
+      const host = req.get('host');
+      credential.metadataUri = `${protocol}://${host}/api/credentials/metadata/${walletAddress}/${eventId}`;
+      
+      await credential.save();
+      upgraded = true;
+    }
+
+    return response.success(res, {
+      eligibility,
+      credentialUpgraded: upgraded,
+      credential: credential || null
+    }, upgraded ? 'Attendee whitelisted and upgraded to Participant' : 'Attendee whitelisted successfully', 200);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   generateApiKey,
   listApiKeys,
   revokeApiKey,
-  webhookAddToWhitelist
+  webhookAddToWhitelist,
+  webhookLumaSync,
+  webhookDevpostSync
 };

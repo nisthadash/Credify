@@ -64,6 +64,7 @@ const credentialRoutes = require('./routes/credentialRoutes');
 const verifyRoutes = require('./routes/verifyRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const webhookRoutes = require('./routes/webhookRoutes');
+const discordRoutes = require('./routes/discordRoutes');
 
 // API Health Check / Welcome page
 app.get('/', (req, res) => {
@@ -86,6 +87,7 @@ app.use('/api/credentials', credentialRoutes);
 app.use('/api/verify', verifyRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/discord', discordRoutes);
 
 // Global Error Handler Middleware
 app.use(errorHandler);

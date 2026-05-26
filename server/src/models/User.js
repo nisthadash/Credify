@@ -15,7 +15,14 @@ const userSchema = new mongoose.Schema({
   },
   password: { 
     type: String, 
-    required: true 
+    required: false
+  },
+  walletAddress: {
+    type: String,
+    lowercase: true,
+    trim: true,
+    unique: true,
+    sparse: true
   },
   role: { 
     type: String, 

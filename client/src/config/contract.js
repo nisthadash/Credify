@@ -1,8 +1,13 @@
-export const CONTRACT_ADDRESS = '0xcdF09A283a6b138A401dC0489B50AaE2E144Ed03';
+export const CONTRACT_ADDRESS = '0x6506937Cf8c1d67cc08A86AA4f13263964eada28';
 
 export const ABI = [
   {
     "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "eventId",
+        "type": "uint256"
+      },
       {
         "internalType": "string",
         "name": "tokenURI",
@@ -20,6 +25,11 @@ export const ABI = [
         "internalType": "address",
         "name": "user",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "eventId",
+        "type": "uint256"
       }
     ],
     "name": "getCredential",
@@ -38,6 +48,11 @@ export const ABI = [
         "internalType": "bool",
         "name": "claimed",
         "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "revoked",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -49,6 +64,11 @@ export const ABI = [
         "internalType": "address",
         "name": "user",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "eventId",
+        "type": "uint256"
       }
     ],
     "name": "isEligible",
@@ -81,6 +101,11 @@ export const ABI = [
         "internalType": "address",
         "name": "user",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "eventId",
+        "type": "uint256"
       }
     ],
     "name": "addEligible",
@@ -94,6 +119,11 @@ export const ABI = [
         "internalType": "address",
         "name": "user",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "eventId",
+        "type": "uint256"
       },
       {
         "internalType": "uint8",
@@ -117,9 +147,32 @@ export const ABI = [
         "internalType": "address[]",
         "name": "users",
         "type": "address[]"
+      },
+      {
+        "internalType": "uint256",
+        "name": "eventId",
+        "type": "uint256"
       }
     ],
     "name": "addEligibleBulk",
+    "outputs": [],
+    "stateMutability": "external",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "eventId",
+        "type": "uint256"
+      }
+    ],
+    "name": "revokeCredential",
     "outputs": [],
     "stateMutability": "external",
     "type": "function"

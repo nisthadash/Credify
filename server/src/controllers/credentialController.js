@@ -447,7 +447,7 @@ const getUserCredentials = async (req, res, next) => {
     // Offline database fallback
     if (mongoose.connection.readyState !== 1) {
       const contractService = require('../services/contractService');
-      const onchainInfo = await contractService.getOnchainCredential(walletLower);
+      const onchainInfo = await contractService.getOnchainCredential(walletLower, '664cc56a7d7324a0d85485ab');
       if (onchainInfo && onchainInfo.hasClaimed) {
         const TIER_NAMES = {
           0: 'Event Pass',
@@ -486,28 +486,28 @@ const getUserCredentials = async (req, res, next) => {
 
     if (credentials.length === 0) {
       try {
-        const onchainInfo = await contractService.getOnchainCredential(walletLower);
-        if (onchainInfo && onchainInfo.hasClaimed && !onchainInfo.isMock) {
-          console.log(`[getUserCredentials] No DB creds found. Reconciling on-chain credential for ${walletLower}.`);
-          const tokenURI = await contractService.getOnchainTokenUri(onchainInfo.tokenId);
-          
-          const TIER_NAMES = {
-            0: 'event pass',
-            1: 'participant badge',
-            2: 'finalist badge',
-            3: 'winner certificate',
-            4: 'mentor badge'
-          };
-          const tierName = TIER_NAMES[onchainInfo.tier] || 'event pass';
+        const allEvents = await Event.find({});
+        for (const event of allEvents) {
+          const eventIdStr = event._id.toString();
+          const onchainInfo = await contractService.getOnchainCredential(walletLower, eventIdStr);
+          if (onchainInfo && onchainInfo.hasClaimed && !onchainInfo.isMock) {
+            console.log(`[getUserCredentials] No DB creds found. Reconciling on-chain credential for ${walletLower} on event ${eventIdStr}.`);
+            const tokenURI = await contractService.getOnchainTokenUri(onchainInfo.tokenId);
+            
+            const TIER_NAMES = {
+              0: 'event pass',
+              1: 'participant badge',
+              2: 'finalist badge',
+              3: 'winner certificate',
+              4: 'mentor badge'
+            };
+            const tierName = TIER_NAMES[onchainInfo.tier] || 'event pass';
 
-          // Find first available event to associate — fallback to a synthetic record
-          const fallbackEvent = await Event.findOne().sort({ createdAt: -1 });
-          if (fallbackEvent) {
             try {
               const newCred = await Credential.create({
                 tokenId: onchainInfo.tokenId,
                 walletAddress: walletLower,
-                eventId: fallbackEvent._id,
+                eventId: event._id,
                 tier: tierName,
                 metadataUri: tokenURI || `https://mock-rpc-node/metadata/${walletLower}`,
                 txHash: 'onchain-reconciled',
