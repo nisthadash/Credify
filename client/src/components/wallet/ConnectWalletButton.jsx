@@ -160,7 +160,7 @@ export default function ConnectWalletButton({ style, className, ...props }) {
       {!isConnected ? (
         <button
           id="connect-wallet-btn"
-          onClick={() => setShowConnectModal(true)}
+          onClick={handleConnectInjected}
           disabled={isPending}
           className="btn btn-primary animate-pulse-glow"
           style={{ padding: '0 20px', height: '40px', fontSize: '14px', width: style?.width || 'auto' }}
