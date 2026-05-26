@@ -372,8 +372,8 @@ export default function LadderPage() {
                 Progression Ladder
               </h2>
               
-              {/* Premium Glassmorphism Event Select Dropdown */}
-              <div style={{ position: 'relative', display: 'inline-block' }}>
+              {/* Premium Event Select Dropdown — minimal text + arrow layout */}
+              <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
                 <select 
                   value={selectedEventId}
                   onChange={(e) => setSelectedEventId(e.target.value)}
@@ -381,44 +381,34 @@ export default function LadderPage() {
                     appearance: 'none',
                     WebkitAppearance: 'none',
                     MozAppearance: 'none',
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: 'var(--radius-md)',
-                    color: 'var(--text)',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-muted)',
                     fontFamily: 'var(--font-display)',
-                    fontWeight: 500,
-                    fontSize: '0.82rem',
-                    padding: '6px 32px 6px 12px',
-                    height: '32px',
+                    fontWeight: 600,
+                    fontSize: '0.85rem',
+                    padding: '0 20px 0 4px',
+                    height: '24px',
                     cursor: 'pointer',
                     outline: 'none',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    width: '210px',
+                    transition: 'color var(--t)',
+                    width: 'auto',
+                    maxWidth: '180px',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden'
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.16)';
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.color = 'var(--text)';
                   }}
                   onMouseLeave={(e) => {
-                    if (document.activeElement !== e.currentTarget) {
-                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
-                    }
+                    e.currentTarget.style.color = 'var(--text-muted)';
                   }}
                   onFocus={(e) => {
-                    e.currentTarget.style.borderColor = 'var(--secondary)';
-                    e.currentTarget.style.boxShadow = '0 0 15px rgba(129, 140, 248, 0.2)';
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+                    e.currentTarget.style.color = 'var(--text)';
                   }}
                   onBlur={(e) => {
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
-                    e.currentTarget.style.boxShadow = 'none';
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+                    e.currentTarget.style.color = 'var(--text-muted)';
                   }}
                 >
                   {events.map(ev => (
@@ -437,7 +427,7 @@ export default function LadderPage() {
                 </select>
                 <div style={{
                   position: 'absolute',
-                  right: '10px',
+                  right: '0px',
                   top: '50%',
                   transform: 'translateY(-50%)',
                   pointerEvents: 'none',
