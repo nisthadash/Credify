@@ -352,7 +352,7 @@ export default function LadderPage() {
           <Sparkles size={13} style={{ color: 'var(--secondary)' }} />
           <span>PROGRESSIVE CREDENTIAL LADDER</span>
         </div>
-        <h1 className="gradient-text" style={{ fontSize: '3.2rem', marginBottom: '16px', lineHeight: 1.15 }}>
+        <h1 className="gradient-text" style={{ fontSize: 'clamp(2rem, 5vw, 3.2rem)', marginBottom: '16px', lineHeight: 1.15 }}>
           Onchain Hackathon Progression
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '1.15rem', maxWidth: '700px', margin: '0 auto', lineHeight: 1.6 }}>

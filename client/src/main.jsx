@@ -10,7 +10,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 // Wagmi & Viem
 import { WagmiProvider, createConfig, http } from 'wagmi';
 import { baseSepolia } from 'wagmi/chains';
-import { injected } from 'wagmi/connectors';
+import { injected, metaMask, coinbaseWallet } from 'wagmi/connectors';
 
 // Universal Gas Framework (UGF)
 import { UGFProvider } from '@tychilabs/react-ugf';
@@ -22,10 +22,14 @@ const queryClient = new QueryClient();
 const wagmiConfig = createConfig({
   chains: [baseSepolia],
   connectors: [
-    injected({
-      target: 'metaMask',
+    injected(),
+    metaMask({
       unstable_shimAsyncInject: 2000,
     }),
+    coinbaseWallet({
+      appName: 'Credify',
+      preference: 'all'
+    })
   ],
   transports: {
     [baseSepolia.id]: http('https://sepolia.base.org')

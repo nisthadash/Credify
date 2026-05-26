@@ -906,7 +906,13 @@ h1, h2, h3, h4, h5, h6 {
   .app-header { width: calc(100% - 16px); top: 8px; }
 
   /* Stack action buttons */
-  .btn-stack-mobile { flex-direction: column; }
+  .btn-stack-mobile {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .btn-stack-mobile > * {
+    width: 100% !important;
+  }
 }
 
 

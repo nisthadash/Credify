@@ -18,6 +18,14 @@ const MetaMaskIcon = () => (
   </svg>
 );
 
+const CoinbaseWalletIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+    <rect width="32" height="32" rx="16" fill="#0052FF"/>
+    <path d="M9 16C9 12.134 12.134 9 16 9C19.866 9 23 12.134 23 16C23 19.866 19.866 23 16 23C12.134 23 9 19.866 9 16Z" fill="white"/>
+    <rect x="13.5" y="13.5" width="5" height="5" rx="1" fill="#0052FF"/>
+  </svg>
+);
+
 export default function ConnectWalletButton({ style, className, ...props }) {
   const { address, isConnected } = useAccount();
   const { connect, connectors, isPending } = useConnect();
@@ -129,7 +137,33 @@ export default function ConnectWalletButton({ style, className, ...props }) {
       return;
     }
 
-    alert('No browser wallet connector is available. Please install MetaMask from https://metamask.io/download and refresh the page.');
+  };
+
+  const handleConnectCoinbase = () => {
+    const cbConnector =
+      connectors.find(c => c.id === 'coinbaseWallet') ||
+      connectors.find(c => c.id === 'coinbaseWalletSDK') ||
+      connectors.find(c => c.name?.toLowerCase().includes('coinbase'));
+
+    if (cbConnector) {
+      connect(
+        { connector: cbConnector },
+        {
+          onSuccess: () => setShowConnectModal(false),
+          onError: (err) => {
+            console.error('Coinbase Wallet connect failed:', err);
+            if (err?.name === 'ConnectorAlreadyConnectedError') {
+              setShowConnectModal(false);
+              return;
+            }
+            alert('Failed to connect: ' + (err?.message || 'Unknown error'));
+          }
+        }
+      );
+      return;
+    }
+
+    alert('Coinbase Wallet connector is not available. Please check configuration.');
   };
 
   return (
@@ -162,7 +196,7 @@ export default function ConnectWalletButton({ style, className, ...props }) {
       {!isConnected ? (
         <button
           id="connect-wallet-btn"
-          onClick={handleConnectInjected}
+          onClick={() => setShowConnectModal(true)}
           disabled={isPending}
           className="btn btn-primary animate-pulse-glow"
           style={{ padding: '0 20px', height: '40px', fontSize: '14px', width: style?.width || 'auto' }}
@@ -523,6 +557,48 @@ export default function ConnectWalletButton({ style, className, ...props }) {
                           ? 'Extension detected'
                           : 'Download MetaMask'
                       }
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight size={16} style={{ color: 'var(--text-subtle)' }} />
+              </button>
+
+              <button
+                onClick={handleConnectCoinbase}
+                className="wallet-connect-option"
+                style={{
+                  width: '100%',
+                  background: 'rgba(0, 82, 255, 0.06)',
+                  border: '1px solid rgba(0, 82, 255, 0.25)',
+                  borderRadius: '16px',
+                  padding: '16px',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                  transition: 'transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(0, 82, 255, 0.12)';
+                  e.currentTarget.style.borderColor = 'rgba(0, 82, 255, 0.45)';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'rgba(0, 82, 255, 0.06)';
+                  e.currentTarget.style.borderColor = 'rgba(0, 82, 255, 0.25)';
+                  e.currentTarget.style.transform = 'none';
+                }}
+              >
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <CoinbaseWalletIcon />
+                  <div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      Coinbase Wallet / QR
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '2px' }}>
+                      Scan QR code or use Coinbase app
                     </div>
                   </div>
                 </div>
