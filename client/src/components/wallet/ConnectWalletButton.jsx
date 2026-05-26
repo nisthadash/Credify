@@ -89,17 +89,44 @@ export default function ConnectWalletButton({ style, className, ...props }) {
 
   const handleOpenMetaMaskDeepLink = () => {
     const deepLink = `https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}${window.location.search}`;
-    window.open(deepLink, '_blank');
+    window.location.href = deepLink;
   };
 
+  // ── Mobile: directly connect, no modal ──
+  // The MetaMask SDK connector handles the deep link / in-app browser detection automatically.
+  const handleMobileConnect = () => {
+    const mmConnector =
+      connectors.find(c => c.id === 'metaMask') ||
+      connectors.find(c => c.id === 'injected') ||
+      connectors.find(c => c.type === 'injected') ||
+      connectors[0];
+
+    if (!mmConnector) {
+      handleOpenMetaMaskDeepLink();
+      return;
+    }
+
+    connect(
+      { connector: mmConnector },
+      {
+        onError: (err) => {
+          console.error('[Mobile connect]', err);
+          if (err?.name === 'ConnectorAlreadyConnectedError') return;
+          if (err?.message?.includes('rejected') || err?.code === 4001) return;
+          // All other failures on mobile → send to MetaMask app
+          handleOpenMetaMaskDeepLink();
+        }
+      }
+    );
+  };
+
+  // ── Desktop: modal option → injected connector ──
   const handleConnectInjected = () => {
-    // On desktop with no provider: redirect to download page
-    if (!isMobile && !providerReady) {
+    if (!providerReady) {
       window.open('https://metamask.io/download', '_blank', 'noopener,noreferrer');
       return;
     }
 
-    // Priority: named 'metaMask' > named 'injected' > name includes 'metamask' > any injected type > first available
     const injConnector =
       connectors.find(c => c.id === 'metaMask') ||
       connectors.find(c => c.id === 'injected') ||
@@ -107,46 +134,24 @@ export default function ConnectWalletButton({ style, className, ...props }) {
       connectors.find(c => c.type === 'injected') ||
       connectors[0];
 
-    if (injConnector) {
-      connect(
-        { connector: injConnector },
-        {
-          onSuccess: () => setShowConnectModal(false),
-          onError: (err) => {
-            console.error('Wallet connect failed:', err);
-            if (err?.name === 'ConnectorAlreadyConnectedError') {
-              setShowConnectModal(false);
-              return;
-            }
-            if (err?.message?.includes('rejected') || err?.code === 4001) {
-              // User rejected — don't offer deep link
-              return;
-            }
-            if (err?.message?.toLowerCase().includes('already pending') || err?.code === -32002) {
-              alert('A connection request is already pending in your wallet. Please open your wallet app and approve it.');
-              return;
-            }
-            // On mobile, if injected failed (no provider at all), offer deep link as fallback
-            if (isMobile) {
-              const confirmed = window.confirm(
-                'No wallet detected in this browser.\n\nOpen MetaMask app to connect?'
-              );
-              if (confirmed) handleOpenMetaMaskDeepLink();
-            } else {
-              alert('Failed to connect: ' + (err?.message || 'Unknown error') + '\n\nTry refreshing the page or disabling conflicting extensions.');
-            }
-          }
-        }
-      );
-      return;
-    }
+    if (!injConnector) return;
 
-    // No connectors at all — last resort
-    if (isMobile) {
-      handleOpenMetaMaskDeepLink();
-    } else {
-      window.open('https://metamask.io/download', '_blank', 'noopener,noreferrer');
-    }
+    connect(
+      { connector: injConnector },
+      {
+        onSuccess: () => setShowConnectModal(false),
+        onError: (err) => {
+          console.error('Wallet connect failed:', err);
+          if (err?.name === 'ConnectorAlreadyConnectedError') { setShowConnectModal(false); return; }
+          if (err?.message?.includes('rejected') || err?.code === 4001) return;
+          if (err?.message?.toLowerCase().includes('already pending') || err?.code === -32002) {
+            alert('A MetaMask request is already pending. Open your MetaMask extension and approve it.');
+            return;
+          }
+          alert('Failed to connect: ' + (err?.message || 'Unknown error'));
+        }
+      }
+    );
   };
 
   const handleConnectCoinbase = () => {
@@ -206,7 +211,7 @@ export default function ConnectWalletButton({ style, className, ...props }) {
       {!isConnected ? (
         <button
           id="connect-wallet-btn"
-          onClick={() => setShowConnectModal(true)}
+          onClick={() => isMobile ? handleMobileConnect() : setShowConnectModal(true)}
           disabled={isPending}
           className="btn btn-primary animate-pulse-glow"
           style={{ padding: '0 20px', height: '40px', fontSize: '14px', width: style?.width || 'auto' }}
