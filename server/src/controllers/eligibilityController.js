@@ -21,6 +21,7 @@ const checkEligibility = async (req, res, next) => {
       return response.success(res, {
         walletAddress: wallet,
         eventId,
+        eventTitle: 'Credify Demo Event',
         isEligible: true
       }, 'Wallet is eligible (Demo Mode)');
     }
@@ -35,9 +36,14 @@ const checkEligibility = async (req, res, next) => {
       return response.success(res, {
         walletAddress: wallet,
         eventId,
+        eventTitle: 'Credify Event (Fallback Mode)',
         isEligible: true
       }, 'Wallet is eligible (Fallback Mode)');
     }
+
+    // Fetch event to include its title in response
+    const event = await Event.findById(eventId);
+    const eventTitle = event ? event.title : '';
 
     const check = await Eligibility.findOne({
       walletAddress: wallet.toLowerCase(),
@@ -63,6 +69,7 @@ const checkEligibility = async (req, res, next) => {
     return response.success(res, {
       walletAddress: wallet,
       eventId,
+      eventTitle,
       isEligible
     }, isEligible ? 'Wallet is eligible' : 'Wallet is not eligible');
   } catch (error) {
@@ -213,9 +220,77 @@ const bulkAddToWhitelist = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Get all participants (whitelisted and claimed) for an event
+ * @route   GET /api/eligible/event/:eventId
+ * @access  Private (Organizer only)
+ */
+const getEventParticipants = async (req, res, next) => {
+  try {
+    const { eventId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      return response.error(res, 'Invalid event ID format', 400);
+    }
+
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return response.error(res, 'Event not found', 404);
+    }
+
+    // Verify ownership
+    if (event.organizerId.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return response.error(res, 'Not authorized to view participants for this event', 403);
+    }
+
+    const eligibilities = await Eligibility.find({ eventId });
+    const Credential = require('../models/Credential');
+    const credentials = await Credential.find({ eventId });
+
+    // Map credentials by wallet address for quick lookup
+    const credentialMap = new Map();
+    credentials.forEach(cred => {
+      credentialMap.set(cred.walletAddress.toLowerCase(), cred);
+    });
+
+    const participants = eligibilities.map(elig => {
+      const walletLower = elig.walletAddress.toLowerCase();
+      const cred = credentialMap.get(walletLower);
+
+      if (cred) {
+        return {
+          walletAddress: elig.walletAddress,
+          tokenId: cred.tokenId,
+          eventName: event.title,
+          tier: cred.tier,
+          txHash: cred.txHash,
+          status: cred.status,
+          createdAt: cred.createdAt
+        };
+      } else {
+        return {
+          walletAddress: elig.walletAddress,
+          tokenId: null,
+          eventName: event.title,
+          tier: 'none',
+          txHash: null,
+          status: 'whitelisted',
+          createdAt: elig.createdAt
+        };
+      }
+    });
+
+    return response.success(res, participants, 'Participants list retrieved successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   checkEligibility,
   checkLatestEligibility,
   addToWhitelist,
-  bulkAddToWhitelist
+  bulkAddToWhitelist,
+  getEventParticipants
 };
+

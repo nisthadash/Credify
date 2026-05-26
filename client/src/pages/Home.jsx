@@ -39,7 +39,7 @@ export default function Home() {
   const { address, isConnected } = useAccount();
 
   /* ── Active hackathon event state ── */
-  const [eventInfo, setEventInfo] = useState(null);       // { eventTitle, eventId, isEligible }
+  const [eventInfo, setEventInfo] = useState(null); // { eventTitle, eventId, isEligible }
   const [loadingEvent, setLoadingEvent] = useState(false);
   const [eventError, setEventError] = useState('');
 
@@ -259,10 +259,7 @@ export default function Home() {
           </p>
         </div>
 
-        <div
-          className="glass-panel"
-          style={{ padding: '28px' }}
-        >
+        <div className="glass-panel" style={{ padding: '28px' }}>
 
           {/* ── Not connected ── */}
           {!isConnected && (
@@ -287,7 +284,6 @@ export default function Home() {
                   color: 'var(--text-muted)',
                   fontSize: '0.95rem',
                   lineHeight: 1.6,
-                  marginBottom: '20px',
                   maxWidth: '360px',
                   margin: '0 auto 20px',
                 }}
@@ -382,8 +378,6 @@ export default function Home() {
                     <span
                       style={{
                         fontWeight: 600,
-                        fontSize: '0.9rem',
-                        color: '#fff',
                         fontFamily: label === 'Event ID' ? 'var(--font-mono)' : 'inherit',
                         fontSize: label === 'Event ID' ? '0.78rem' : '0.9rem',
                         color: label === 'Event Name' ? 'var(--secondary)' : '#fff',

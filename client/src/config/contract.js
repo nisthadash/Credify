@@ -1,4 +1,4 @@
-export const CONTRACT_ADDRESS = '0x1A05f3c095eB6bc6c9c0C4E4b17219751ab53a49';
+export const CONTRACT_ADDRESS = '0xcdF09A283a6b138A401dC0489B50AaE2E144Ed03';
 
 export const ABI = [
   {
@@ -87,6 +87,41 @@ export const ABI = [
     "outputs": [],
     "stateMutability": "external",
     "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "internalType": "uint8",
+        "name": "tier",
+        "type": "uint8"
+      },
+      {
+        "internalType": "string",
+        "name": "uri",
+        "type": "string"
+      }
+    ],
+    "name": "upgradeTier",
+    "outputs": [],
+    "stateMutability": "external",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "users",
+        "type": "address[]"
+      }
+    ],
+    "name": "addEligibleBulk",
+    "outputs": [],
+    "stateMutability": "external",
+    "type": "function"
   }
 ];
-

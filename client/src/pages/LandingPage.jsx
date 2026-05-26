@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShieldCheck, X, Download, Coins, Award } from 'lucide-react';
+import { ShieldCheck, X, Wallet, Coins, Award } from 'lucide-react';
 import logo from '../assets/logo.png';
 
 export default function LandingPage() {
@@ -290,21 +290,23 @@ export default function LandingPage() {
               <div className="guide-step-card">
                 <div className="guide-card-header">
                   <div className="guide-card-icon-wrapper">
-                    <Download size={20} />
+                    <Wallet size={20} />
                   </div>
-                  <h3 className="guide-card-title">Install MetaMask</h3>
+                  <h3 className="guide-card-title">Connect MetaMask</h3>
                   <p className="guide-card-desc">
-                    Set up your MetaMask wallet to securely store and manage your credentials.
+                    Use your installed MetaMask wallet to securely manage and claim credentials.
                   </p>
                 </div>
-                <a 
-                  href="https://metamask.io/download" 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowGuide(false);
+                    navigate('/claim');
+                  }}
                   className="guide-card-btn guide-card-btn-metamask"
                 >
-                  Download MetaMask
-                </a>
+                  Continue to Connect
+                </button>
               </div>
 
               {/* Step 2 */}

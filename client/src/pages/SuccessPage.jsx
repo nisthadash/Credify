@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CheckCircle2, ExternalLink, Share2, Award, Compass } from 'lucide-react';
+import { CheckCircle2, ExternalLink, Award, Compass, Download, Twitter } from 'lucide-react';
 
 export default function SuccessPage() {
   const [params] = useSearchParams();
@@ -11,10 +11,125 @@ export default function SuccessPage() {
 
   useEffect(() => { const t = setTimeout(() => setShow(true), 80); return () => clearTimeout(t); }, []);
 
-  const handleShare = () => {
-    const text = `I just claimed onchain credential #${tokenId} on @CredifyApp (Base Sepolia) — gasless via UGF`;
-    if (navigator.share) navigator.share({ title: 'My Credify Credential', text }).catch(() => {});
-    else { navigator.clipboard.writeText(text); }
+  const escapeXml = (unsafe) => {
+    return unsafe.replace(/[<>&'"]/g, (c) => {
+      switch (c) {
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case '&': return '&amp;';
+        case '\'': return '&apos;';
+        case '"': return '&quot;';
+        default: return c;
+      }
+    });
+  };
+
+  const downloadBadgeSvg = () => {
+    const decodedEventName = decodeURIComponent(eventName);
+    const escapedEventName = escapeXml(decodedEventName);
+    
+    // Split text into up to 2 lines for better layout
+    let line1 = escapedEventName;
+    let line2 = '';
+    if (escapedEventName.length > 22) {
+      const lastSpace = escapedEventName.lastIndexOf(' ', 22);
+      if (lastSpace !== -1) {
+        line1 = escapedEventName.substring(0, lastSpace);
+        line2 = escapedEventName.substring(lastSpace + 1);
+      } else {
+        line1 = escapedEventName.substring(0, 22) + '...';
+      }
+    }
+
+    const svgContent = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="400" height="500">' +
+  '<defs>' +
+    '<!-- Deep premium background gradient -->' +
+    '<linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">' +
+      '<stop offset="0%" stop-color="#0a0f1d" />' +
+      '<stop offset="60%" stop-color="#070a13" />' +
+      '<stop offset="100%" stop-color="#020408" />' +
+    '</linearGradient>' +
+    '<!-- Neon border/glow gradient -->' +
+    '<linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">' +
+      '<stop offset="0%" stop-color="#3b82f6" />' +
+      '<stop offset="40%" stop-color="#1d4ed8" />' +
+      '<stop offset="60%" stop-color="#7c3aed" />' +
+      '<stop offset="100%" stop-color="#10b981" />' +
+    '</linearGradient>' +
+    '<!-- Gold/cyan highlights for text -->' +
+    '<linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">' +
+      '<stop offset="0%" stop-color="#60a5fa" />' +
+      '<stop offset="100%" stop-color="#a78bfa" />' +
+    '</linearGradient>' +
+    '<!-- Soft glow filter -->' +
+    '<filter id="glow" x="-20%" y="-20%" width="140%" height="140%">' +
+      '<feGaussianBlur stdDeviation="18" result="blur" />' +
+      '<feComposite in="SourceGraphic" in2="blur" operator="over" />' +
+    '</filter>' +
+  '</defs>' +
+  '<!-- Card Border -->' +
+  '<rect x="10" y="10" width="380" height="480" rx="28" fill="url(#bgGrad)" stroke="url(#borderGrad)" stroke-width="2.5" />' +
+  '<!-- Futuristic corner accents -->' +
+  '<path d="M 12 40 L 12 24 A 12 12 0 0 1 24 12 L 40 12" stroke="#60a5fa" stroke-width="2.5" fill="none" opacity="0.8" />' +
+  '<path d="M 388 40 L 388 24 A 12 12 0 0 0 376 12 L 360 12" stroke="#60a5fa" stroke-width="2.5" fill="none" opacity="0.8" />' +
+  '<path d="M 12 460 L 12 476 A 12 12 0 0 0 24 488 L 40 488" stroke="#7c3aed" stroke-width="2.5" fill="none" opacity="0.8" />' +
+  '<path d="M 388 460 L 388 476 A 12 12 0 0 1 376 488 L 360 488" stroke="#7c3aed" stroke-width="2.5" fill="none" opacity="0.8" />' +
+  '<!-- Radial grid backdrop decoration -->' +
+  '<circle cx="200" cy="180" r="160" fill="none" stroke="#1e293b" stroke-width="0.75" opacity="0.4" stroke-dasharray="4,4" />' +
+  '<circle cx="200" cy="180" r="120" fill="none" stroke="#334155" stroke-width="0.75" opacity="0.3" />' +
+  '<circle cx="200" cy="180" r="80" fill="none" stroke="#3b82f6" stroke-width="0.5" opacity="0.2" />' +
+  '<!-- Glowing core background -->' +
+  '<circle cx="200" cy="180" r="45" fill="#3b82f6" opacity="0.2" filter="url(#glow)" />' +
+  '<circle cx="200" cy="180" r="35" fill="#7c3aed" opacity="0.15" filter="url(#glow)" />' +
+  '<!-- Logo/Header -->' +
+  '<text x="200" y="55" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="14" fill="#94a3b8" letter-spacing="6" text-anchor="middle" opacity="0.8">CREDIFY</text>' +
+  '<line x1="170" y1="65" x2="230" y2="65" stroke="#334155" stroke-width="1" />' +
+  '<!-- Badge Icon in Center -->' +
+  '<g transform="translate(160, 140)">' +
+    '<!-- Hexagonal or outer ring -->' +
+    '<polygon points="40,2 78,22 78,64 40,84 2,64 2,22" fill="#111827" stroke="url(#textGrad)" stroke-width="2.5" />' +
+    '<!-- Central Icon: Compass/Star -->' +
+    '<path d="M 40,16 L 44.5,35.5 L 64,40 L 44.5,44.5 L 40,64 L 35.5,44.5 L 16,40 L 35.5,35.5 Z" fill="url(#textGrad)" />' +
+    '<circle cx="40" cy="40" r="5" fill="#ffffff" />' +
+  '</g>' +
+  '<!-- Tag / Tier Badge -->' +
+  '<rect x="145" y="252" width="110" height="24" rx="12" fill="#1e3a8a" stroke="#2563eb" stroke-width="1.5" opacity="0.8" />' +
+  '<text x="200" y="268" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="10" fill="#93c5fd" letter-spacing="2" text-anchor="middle">EVENT PASS</text>' +
+  '<!-- Event Title line 1 -->' +
+  '<text x="200" y="312" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="' + (line2 ? '19' : '22') + '" fill="#ffffff" text-anchor="middle" letter-spacing="-0.5">' +
+    line1 +
+  '</text>' +
+  '<!-- Event Title line 2 (optional) -->' +
+  (line2 ? '<text x="200" y="338" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="19" fill="#ffffff" text-anchor="middle" letter-spacing="-0.5">' + line2 + '</text>' : '') +
+  '<!-- Date -->' +
+  '<text x="200" y="' + (line2 ? '375' : '360') + '" font-family="system-ui, -apple-system, sans-serif" font-weight="500" font-size="13" fill="#64748b" text-anchor="middle">May 30, 2026</text>' +
+  '<!-- Bottom Details Block -->' +
+  '<rect x="30" y="415" width="340" height="50" rx="12" fill="#0b0f19" stroke="#1e293b" stroke-width="1" />' +
+  '<text x="50" y="445" font-family="monospace" font-weight="700" font-size="13" fill="#94a3b8">#' + tokenId.toString().padStart(4, '0') + '</text>' +
+  '<!-- Network status pill -->' +
+  '<g transform="translate(255, 431)">' +
+    '<rect width="95" height="18" rx="9" fill="#10b981" opacity="0.1" />' +
+    '<circle cx="10" cy="9" r="3.5" fill="#10b981" />' +
+    '<text x="22" y="13" font-family="system-ui, -apple-system, sans-serif" font-weight="700" font-size="9" fill="#34d399" letter-spacing="0.5">BASE SEPOLIA</text>' +
+  '</g>' +
+'</svg>';
+
+    const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Credify_Badge_${tokenId}.svg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleShareOnX = () => {
+    const decodedEventName = decodeURIComponent(eventName);
+    const text = `I just claimed my onchain Event Pass for "${decodedEventName}" (Token #${tokenId}) gaslessly via @CredifyApp on Base! 🚀🛡️\n\nVerify or claim yours here: ${window.location.origin}`;
+    const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -110,12 +225,12 @@ export default function SuccessPage() {
             className="btn btn-ghost" style={{ textDecoration: 'none' }}>
             <ExternalLink size={14} /> Explorer
           </a>
-          <button onClick={handleShare} className="btn btn-ghost">
-            <Share2 size={14} /> Share
+          <button onClick={downloadBadgeSvg} className="btn btn-ghost">
+            <Download size={14} /> Download
           </button>
-          <Link to="/my-credentials" className="btn btn-primary" style={{ textDecoration: 'none' }}>
-            <Award size={14} /> My Creds
-          </Link>
+          <button onClick={handleShareOnX} className="btn btn-primary">
+            <Twitter size={14} /> Share on X
+          </button>
         </div>
 
         {/* Zero ETH note */}

@@ -4,15 +4,20 @@ const {
   checkEligibility, 
   checkLatestEligibility, 
   addToWhitelist, 
-  bulkAddToWhitelist 
+  bulkAddToWhitelist,
+  getEventParticipants
 } = require('../controllers/eligibilityController');
 const { protect, organizerOnly } = require('../middleware/authMiddleware');
+const { requireEventOwner } = require('../middleware/tenantMiddleware');
 
 router.route('/')
-  .post(protect, organizerOnly, addToWhitelist);
+  .post(protect, organizerOnly, requireEventOwner, addToWhitelist);
 
 router.route('/bulk')
-  .post(protect, organizerOnly, bulkAddToWhitelist);
+  .post(protect, organizerOnly, requireEventOwner, bulkAddToWhitelist);
+
+router.route('/event/:eventId')
+  .get(protect, organizerOnly, requireEventOwner, getEventParticipants);
 
 router.route('/:wallet')
   .get(checkLatestEligibility);

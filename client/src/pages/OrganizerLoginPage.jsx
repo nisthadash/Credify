@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Lock } from 'lucide-react';
 import logo from '../assets/logo.png';
+import apiFetch from '../services/api.js';
 
 const DEMO_EMAIL    = 'organizer@credify.app';
 const DEMO_PASSWORD = 'credify2026';
@@ -17,14 +18,46 @@ export default function OrganizerLoginPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
-    await new Promise(r => setTimeout(r, 700));
-    if (email === DEMO_EMAIL && password === DEMO_PASSWORD) {
-      sessionStorage.setItem('credify_organizer', 'true');
-      navigate('/organizer/dashboard');
-    } else {
-      setError(`Incorrect credentials. Use the demo account below.`);
+    try {
+      let data = await apiFetch('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password })
+      });
+
+      // Auto-register demo account if it doesn't exist yet on backend
+      if (!data.success && email === DEMO_EMAIL && password === DEMO_PASSWORD) {
+        console.log('[Login] Demo account not found. Auto-registering on-the-fly...');
+        const regData = await apiFetch('/auth/register', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: 'Credify Organizer',
+            email: DEMO_EMAIL,
+            password: DEMO_PASSWORD,
+            role: 'organizer'
+          })
+        });
+        if (regData.success) {
+          data = regData;
+        }
+      }
+
+      if (data && data.success) {
+        sessionStorage.setItem('credify_organizer', JSON.stringify({
+          id: data.data._id,
+          name: data.data.name,
+          email: data.data.email,
+          token: data.data.token
+        }));
+        navigate('/organizer/dashboard');
+      } else {
+        setError(data.message || 'Login failed. Please check your credentials.');
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Connection to backend failed. Please ensure the server is running.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

@@ -21,7 +21,12 @@ const userSchema = new mongoose.Schema({
     type: String, 
     enum: ['organizer', 'mentor', 'participant'], 
     default: 'organizer' 
-  }
+  },
+  apiKeys: [{
+    key: { type: String, required: true },
+    name: { type: String, default: 'Default API Key' },
+    createdAt: { type: Date, default: Date.now }
+  }]
 }, { timestamps: true });
 
 // Pre-save middleware to hash password

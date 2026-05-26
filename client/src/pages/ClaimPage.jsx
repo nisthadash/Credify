@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Calendar, Tag, Ticket, ShieldAlert, ShieldCheck, Compass } from 'lucide-react';
@@ -12,7 +12,7 @@ import { baseSepolia } from 'viem/chains';
 import { Contract } from 'ethers';
 import { useEthersSigner } from '../utils/ethers.js';
 import { CONTRACT_ADDRESS, ABI } from '../config/contract.js';
-import { saveClaim } from '../services/credentialService.js';
+import { saveClaim, getCredentialsByWallet, getEvents } from '../services/credentialService.js';
 
 const EVENT = {
   name: 'Credify Base Sepolia Workshop',
@@ -24,17 +24,33 @@ const EVENT = {
 export default function ClaimPage() {
   const { address, isConnected } = useAccount();
   const navigate = useNavigate();
-  const { checked, isEligible, eventTitle, eventId, loading: eligLoading } = useEligibility(address, isConnected);
-  const { ugfStep: realUgfStep, txDetails: realTxDetails, triggerClaim, isRunning: realIsRunning } = useUGFClaim();
+
+  // Load events and select the first one (or the one user is whitelisted for)
+  const [events, setEvents] = useState([]);
+  const [selectedEventId, setSelectedEventId] = useState(null);
+  const [loadingEvents, setLoadingEvents] = useState(false);
+
+  // Load events on mount
+  useEffect(() => {
+    (async () => {
+      setLoadingEvents(true);
+      try {
+        const allEvents = await getEvents();
+        setEvents(allEvents || []);
+        if (allEvents && allEvents.length > 0) {
+          setSelectedEventId(allEvents[0]._id);
+        }
+      } catch (err) {
+        console.error('Failed loading events:', err);
+      } finally {
+        setLoadingEvents(false);
+      }
+    })();
+  }, []);
+
+  const { checked, isEligible, eventTitle, eventId, loading: eligLoading } = useEligibility(address, isConnected, selectedEventId);
+  const { ugfStep, txDetails, triggerClaim, isRunning } = useUGFClaim();
   const [modalOpen, setModalOpen] = useState(false);
-
-  // Local simulated claim states (used when not whitelisted on-chain)
-  const [simUgfStep, setSimUgfStep] = useState('');
-  const [isSimulating, setIsSimulating] = useState(false);
-
-  // Derive displayed step and running state
-  const ugfStep = isSimulating ? simUgfStep : realUgfStep;
-  const isRunning = isSimulating || realIsRunning;
 
   // On-chain owner and eligibility checks
   const signer = useEthersSigner();
@@ -43,16 +59,31 @@ export default function ClaimPage() {
   const [onchainClaimed, setOnchainClaimed] = useState(false);
   const [checkingOnchain, setCheckingOnchain] = useState(false);
   const [whitelisting, setWhitelisting] = useState(false);
+  const [credentials, setCredentials] = useState([]);
+  const [loadingCreds, setLoadingCreds] = useState(false);
+
+  const loadCredentials = async () => {
+    if (!address) return;
+    setLoadingCreds(true);
+    try {
+      const data = await getCredentialsByWallet(address);
+      setCredentials(data || []);
+    } catch (err) {
+      console.error('Error loading credentials in ClaimPage:', err);
+    } finally {
+      setLoadingCreds(false);
+    }
+  };
 
   const checkOnchainStatus = async () => {
-    if (!address) return;
+    if (!address || !selectedEventId) return;
     setCheckingOnchain(true);
     try {
       const publicClient = createPublicClient({
         chain: baseSepolia,
         transport: http('https://sepolia.base.org')
       });
-      
+
       const ownerAddress = await publicClient.readContract({
         address: CONTRACT_ADDRESS,
         abi: ABI,
@@ -84,18 +115,18 @@ export default function ClaimPage() {
   };
 
   const handleWhitelistOnchain = async () => {
-    if (!signer || !address) return;
+    if (!signer || !address || !selectedEventId) return;
     setWhitelisting(true);
     try {
       const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
-      console.log('[ClaimPage Onchain Whitelist] Sending addEligible transaction for:', address);
+      console.log('[ClaimPage Onchain Whitelist] Sending addEligible transaction for:', address, 'event:', selectedEventId);
       const tx = await contract.addEligible(address);
       console.log('[ClaimPage Onchain Whitelist] Transaction sent:', tx.hash);
-      
+
       // Wait for 1 confirmation
       const receipt = await tx.wait();
       console.log('[ClaimPage Onchain Whitelist] Transaction confirmed:', receipt);
-      
+
       // Refresh status
       await checkOnchainStatus();
       alert('Wallet whitelisted on-chain successfully!');
@@ -107,74 +138,34 @@ export default function ClaimPage() {
     }
   };
 
-  React.useEffect(() => {
-    if (isConnected && address) {
+  useEffect(() => {
+    if (isConnected && address && selectedEventId) {
       checkOnchainStatus();
+      loadCredentials();
     } else {
       setContractOwner('');
       setOnchainEligible(false);
       setOnchainClaimed(false);
+      setCredentials([]);
     }
-  }, [address, isConnected]);
+  }, [address, isConnected, selectedEventId]);
 
-  // Simulated gasless claim flow (used when not whitelisted on-chain for demo purposes)
-  const runSimulatedClaim = async () => {
-    setIsSimulating(true);
-    setModalOpen(true);
-    try {
-      setSimUgfStep('quoting');
-      await new Promise(r => setTimeout(r, 1600));
+  const hasClaimedThisEvent = credentials.some(c => {
+    const cEventId = typeof c.eventId === 'object' ? c.eventId?._id : c.eventId;
+    return cEventId === selectedEventId;
+  });
 
-      setSimUgfStep('settling');
-      await new Promise(r => setTimeout(r, 1400));
-
-      setSimUgfStep('executing');
-      await new Promise(r => setTimeout(r, 1800));
-
-      setSimUgfStep('confirming');
-      const mockTxHash = '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-      const randomTokenId = Math.floor(Math.random() * 500) + 1;
-      const protocol = window.location.protocol;
-      const host = window.location.host;
-      const mockMetadata = `${protocol}//${host}/api/credentials/metadata/${address}/${eventId || '664cc56a7d7324a0d85485ab'}`;
-
-      await saveClaim({
-        tokenId: randomTokenId,
-        walletAddress: address,
-        eventId: eventId || '664cc56a7d7324a0d85485ab',
-        txHash: mockTxHash,
-        metadataUri: mockMetadata,
-        tierLevel: 0,
-      });
-
-      await new Promise(r => setTimeout(r, 1200));
-      setSimUgfStep('success');
-
-      setTimeout(() => {
-        setModalOpen(false);
-        setIsSimulating(false);
-        setSimUgfStep('');
-        navigate(`/success?tokenId=${randomTokenId}&txHash=${mockTxHash}&event=${encodeURIComponent(eventTitle || EVENT.name)}`);
-      }, 1200);
-    } catch (err) {
-      console.error('Simulated claim failed:', err);
-      setModalOpen(false);
-      setIsSimulating(false);
-      setSimUgfStep('');
-      alert('Gasless claim failed: ' + (err.message || err));
-    }
-  };
+  const isAlreadyClaimedForEvent = hasClaimedThisEvent || onchainClaimed;
 
   const handleClaim = async () => {
-    // If wallet is not whitelisted on-chain, use the simulated flow
     if (!onchainEligible) {
-      await runSimulatedClaim();
+      alert('Your wallet is not whitelisted on-chain. Please contact the organizer.');
       return;
     }
     // Real UGF flow
     setModalOpen(true);
     try {
-      const result = await triggerClaim(address, eventId);
+      const result = await triggerClaim(address, selectedEventId);
       setTimeout(() => {
         setModalOpen(false);
         navigate(`/success?tokenId=${result.tokenId}&txHash=${result.txHash}&event=${encodeURIComponent(eventTitle || EVENT.name)}`);
@@ -212,14 +203,21 @@ export default function ClaimPage() {
                 Event Details
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-                <Row label="Event"  value={eventTitle || EVENT.name} />
-                <Row label="Date"   value={EVENT.date} />
-                <Row label="Tier"   value={<span style={{ color: '#93c5fd', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}><Ticket size={13} /> {EVENT.tier} (Tier 0)</span>} />
+                <Row label="Event" value={eventTitle || EVENT.name} />
+                <Row label="Date" value={EVENT.date} />
+                <Row label="Tier" value={<span style={{ color: '#93c5fd', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}><Ticket size={13} /> {EVENT.tier} (Tier 0)</span>} />
                 {isConnected && checked && (
                   <Row label="Eligibility" value={
                     isEligible
                       ? <span className="chip chip-eligible" style={{ fontSize: '11px' }}><span className="chip-dot" /> Eligible</span>
                       : <span className="chip chip-not-eligible" style={{ fontSize: '11px' }}><span className="chip-dot" /> Not Eligible</span>
+                  } />
+                )}
+                {isConnected && checked && isEligible && !checkingOnchain && (
+                  <Row label="On-chain Whitelist" value={
+                    onchainEligible
+                      ? <span className="chip chip-eligible" style={{ fontSize: '11px' }}><span className="chip-dot" /> Synced</span>
+                      : <span className="chip chip-not-eligible" style={{ fontSize: '11px' }}><span className="chip-dot" /> Not Synced</span>
                   } />
                 )}
               </div>
@@ -234,19 +232,19 @@ export default function ClaimPage() {
                   </p>
                   <ConnectWalletButton />
                 </div>
-              ) : eligLoading ? (
+              ) : eligLoading || loadingCreds ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center', padding: '12px' }}>
                   <Loader size="md" />
                   <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Checking eligibility…</span>
                 </div>
-              ) : onchainClaimed ? (
+              ) : isAlreadyClaimedForEvent ? (
                 <div style={{ textAlign: 'center', padding: '16px 0' }}>
                   <p style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}><ShieldCheck size={28} style={{ color: 'var(--success)' }} /></p>
                   <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px', color: '#fff' }}>Credential Already Claimed</h3>
                   <p style={{ color: 'var(--text-muted)', fontSize: '13px', lineHeight: 1.6, marginBottom: '20px' }}>
                     You have already claimed this credential pass on Base Sepolia.
                   </p>
-                  <button 
+                  <button
                     onClick={() => navigate('/my-credentials')}
                     className="btn btn-primary btn-full"
                     style={{ height: '48px', fontSize: '15px' }}
@@ -261,14 +259,38 @@ export default function ClaimPage() {
                     Your wallet isn't on the whitelist for this event. Contact the organizer.
                   </p>
                 </div>
+              ) : checkingOnchain ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center', padding: '24px' }}>
+                  <Loader size="md" />
+                  <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Checking on-chain status…</span>
+                </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {isEligible && !onchainEligible && (
+                    <div style={{
+                      padding: '12px 14px',
+                      background: 'rgba(245, 158, 11, 0.08)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid rgba(245, 158, 11, 0.25)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px'
+                    }}>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', color: '#fbbf24' }}>
+                        <ShieldAlert size={14} /> Database Whitelisted, On-chain Pending
+                      </div>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', lineHeight: 1.4 }}>
+                        The organizer dashboard has approved this wallet, but the smart contract whitelist has not been synced yet. Ask the contract owner to whitelist this wallet on-chain before claiming.
+                      </p>
+                    </div>
+                  )}
+
                   {/* Onchain Whitelist Warning for Smart Contract Owner */}
                   {contractOwner && address && address.toLowerCase() === contractOwner.toLowerCase() && !onchainEligible && (
-                    <div style={{ 
-                      padding: '12px 14px', 
-                      background: 'rgba(239, 68, 68, 0.07)', 
-                      borderRadius: 'var(--radius-md)', 
+                    <div style={{
+                      padding: '12px 14px',
+                      background: 'rgba(239, 68, 68, 0.07)',
+                      borderRadius: 'var(--radius-md)',
                       border: '1px solid rgba(239, 68, 68, 0.25)',
                       display: 'flex',
                       flexDirection: 'column',
@@ -280,13 +302,13 @@ export default function ClaimPage() {
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', lineHeight: 1.4 }}>
                         Your wallet is the smart contract owner but is not whitelisted on-chain yet. The UGF transaction dry-run simulation will revert.
                       </p>
-                      <button 
+                      <button
                         onClick={handleWhitelistOnchain}
                         disabled={whitelisting}
                         className="btn btn-sm btn-primary"
-                        style={{ 
-                          fontSize: '11px', 
-                          padding: '6px 12px', 
+                        style={{
+                          fontSize: '11px',
+                          padding: '6px 12px',
                           height: 'auto',
                           background: 'var(--primary)',
                           color: '#000',
@@ -305,13 +327,21 @@ export default function ClaimPage() {
                   <button
                     id="claim-pass-btn"
                     onClick={handleClaim}
-                    disabled={isRunning}
+                    disabled={isRunning || !onchainEligible}
                     className="btn btn-primary btn-full"
-                    style={{ height: '48px', fontSize: '15px', gap: '10px' }}
+                    style={{
+                      height: '48px',
+                      fontSize: '15px',
+                      gap: '10px',
+                      opacity: (!onchainEligible && !isRunning) ? 0.55 : 1,
+                      cursor: (!onchainEligible && !isRunning) ? 'not-allowed' : 'pointer'
+                    }}
                   >
                     {isRunning
                       ? <><Loader size="sm" style={{ border: '2px solid rgba(255,255,255,0.25)', borderTopColor: '#fff' }} /> Processing…</>
-                      : <>Claim Gasless Event Pass <ArrowRight size={17} /></>
+                      : !onchainEligible
+                        ? <>Not Whitelisted On-Chain</>
+                        : <>Claim Gasless Event Pass <ArrowRight size={17} /></>
                     }
                   </button>
                   <p style={{ fontSize: '12px', color: 'var(--text-subtle)', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
