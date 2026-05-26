@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAccount, useChainId } from 'wagmi';
-import { CheckCircle2, ShieldAlert, Award, Star, Flame, Compass, ChevronRight, Share2, ExternalLink, Lock, Unlock, Sparkles, RefreshCw, Zap, Info, Trophy, Sliders, Check } from 'lucide-react';
+import { CheckCircle2, ShieldAlert, Award, Star, Flame, Compass, ChevronRight, ChevronDown, Share2, ExternalLink, Lock, Unlock, Sparkles, RefreshCw, Zap, Info, Trophy, Sliders, Check } from 'lucide-react';
 import { useEligibility } from '../hooks/useEligibility.js';
 import { useUGFClaim } from '../hooks/useUGFClaim.js';
-import { saveClaim, getCredentialsByWallet } from '../services/credentialService.js';
+import { saveClaim, getCredentialsByWallet, getEvents } from '../services/credentialService.js';
 import { createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { Contract } from 'ethers';
@@ -26,9 +26,43 @@ const UGF_STEPS = [
   { key: 'confirming', number: 4, title: 'Block Confirmation', desc: 'Waiting for the block to be finalized onchain' }
 ];
 
+const MOCK_EVENTS = [
+  { _id: '664cc56a7d7324a0d85485ab', title: 'Credify Base Sepolia Workshop' },
+  { _id: '664cc56a7d7324a0d85485ac', title: 'ETHGlobal London 2026' },
+  { _id: '664cc56a7d7324a0d85485ad', title: 'Base Builder House Paris' },
+  { _id: '664cc56a7d7324a0d85485ae', title: 'Superhack 2026' },
+  { _id: '664cc56a7d7324a0d85485af', title: 'Arbitrum Ascent Hackathon' }
+];
+
 export default function LadderPage() {
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
+
+  // Selected Hackathon / Event States
+  const [events, setEvents] = useState(MOCK_EVENTS);
+  const [selectedEventId, setSelectedEventId] = useState('664cc56a7d7324a0d85485ab');
+
+  // Load events from database if available
+  useEffect(() => {
+    const loadApiEvents = async () => {
+      try {
+        const data = await getEvents();
+        if (data && data.length > 0) {
+          // Merge API events with mock events (avoid duplicate _ids)
+          const merged = [...data];
+          MOCK_EVENTS.forEach(mock => {
+            if (!merged.some(e => e._id === mock._id)) {
+              merged.push(mock);
+            }
+          });
+          setEvents(merged);
+        }
+      } catch (err) {
+        console.warn('[LadderPage] Failed to fetch events from backend. Running with mock events.', err);
+      }
+    };
+    loadApiEvents();
+  }, []);
 
   // Load actual claimed credentials
   const [credentials, setCredentials] = useState([]);
@@ -127,7 +161,11 @@ export default function LadderPage() {
   const [ugfError, setUgfError] = useState('');
 
   // Standard eligibility check for Event Pass (Tier 0)
-  const { checked, isEligible, eventTitle, eventId, loading: loadingEligibility } = useEligibility(address, isConnected);
+  const { checked, isEligible, eventTitle, eventId, loading: loadingEligibility } = useEligibility(address, isConnected, selectedEventId);
+
+  // Dynamically resolve active event title from either selected mock list or eligibility result
+  const activeEvent = events.find(e => e._id === selectedEventId);
+  const activeEventTitle = activeEvent ? activeEvent.title : (eventTitle || 'Credify Hackathon Ladder');
 
   // Real UGF Claim Flow Hook
   const { ugfStep: realUgfStep, txDetails: realTxDetails, error: realError, triggerClaim, reset: resetRealUgf } = useUGFClaim();
@@ -189,8 +227,12 @@ export default function LadderPage() {
   }, [claimingTier]);
 
   // Computed state calculations
-  const claimedLevels = new Set(credentials.map(c => c.tierLevel));
-  if (onchainClaimed) {
+  const claimedLevels = new Set(
+    credentials
+      .filter(c => c.eventId === selectedEventId)
+      .map(c => c.tierLevel)
+  );
+  if (onchainClaimed && selectedEventId === '664cc56a7d7324a0d85485ab') {
     claimedLevels.add(0);
   }
   const highestClaimedLevel = claimedLevels.size > 0 
@@ -227,7 +269,7 @@ export default function LadderPage() {
     
     if (claimingTier.level === 0 && onchainEligible) {
       try {
-        await triggerClaim(address, eventId || '664cc56a7d7324a0d85485ab', 0);
+        await triggerClaim(address, eventId || selectedEventId || '664cc56a7d7324a0d85485ab', 0);
         await loadCredentials();
         setSimulateApproval(false);
       } catch (err) {
@@ -257,10 +299,11 @@ export default function LadderPage() {
         await saveClaim({
           tokenId: randomTokenId,
           walletAddress: address,
-          eventId: '664cc56a7d7324a0d85485ab',
+          eventId: selectedEventId || eventId || '664cc56a7d7324a0d85485ab',
           txHash: mockTxHash,
           metadataUri: mockMetadata,
-          tierLevel: claimingTier.level
+          tierLevel: claimingTier.level,
+          eventName: activeEventTitle
         });
 
         setTxDetails({
@@ -295,7 +338,7 @@ export default function LadderPage() {
   };
 
   const getClaimedTxDetails = (level) => {
-    return credentials.find(c => c.tierLevel === level);
+    return credentials.find(c => c.tierLevel === level && c.eventId === selectedEventId);
   };
 
   function startClaimFlow(tier) {
@@ -312,7 +355,7 @@ export default function LadderPage() {
           <Sparkles size={13} style={{ color: 'var(--secondary)' }} />
           <span>PROGRESSIVE CREDENTIAL LADDER</span>
         </div>
-        <h1 className="gradient-text" style={{ fontSize: '3.2rem', marginBottom: '16px', lineHeight: 1.15 }}>
+        <h1 className="gradient-text" style={{ fontSize: 'clamp(2rem, 5vw, 3.2rem)', marginBottom: '16px', lineHeight: 1.15 }}>
           Onchain Hackathon Progression
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '1.15rem', maxWidth: '700px', margin: '0 auto', lineHeight: 1.6 }}>
@@ -325,13 +368,82 @@ export default function LadderPage() {
         
         {/* Left Side: Interactive Progression Timeline */}
         <div className="glass-panel" style={{ padding: '32px', position: 'relative' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
-            <h2 style={{ fontSize: '1.4rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Zap size={20} style={{ color: 'var(--secondary)' }} />
-              Progression Ladder
-            </h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '28px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <h2 style={{ fontSize: '1.4rem', display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
+                <Zap size={20} style={{ color: 'var(--secondary)' }} />
+                Progression Ladder
+              </h2>
+              
+              {/* Premium Event Select Dropdown — minimal text + arrow layout */}
+              <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                <select 
+                  value={selectedEventId}
+                  onChange={(e) => setSelectedEventId(e.target.value)}
+                  style={{
+                    appearance: 'none',
+                    WebkitAppearance: 'none',
+                    MozAppearance: 'none',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    fontFamily: 'var(--font-display)',
+                    fontWeight: 600,
+                    fontSize: '0.85rem',
+                    padding: '0 20px 0 4px',
+                    height: '24px',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    transition: 'color var(--t)',
+                    width: 'auto',
+                    maxWidth: '180px',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = 'var(--text)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'var(--text-muted)';
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.color = 'var(--text)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.color = 'var(--text-muted)';
+                  }}
+                >
+                  {events.map(ev => (
+                    <option 
+                      key={ev._id} 
+                      value={ev._id}
+                      style={{
+                        background: 'var(--surface-alt)',
+                        color: 'var(--text)',
+                        padding: '10px'
+                      }}
+                    >
+                      {ev.title}
+                    </option>
+                  ))}
+                </select>
+                <div style={{
+                  position: 'absolute',
+                  right: '0px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  pointerEvents: 'none',
+                  color: 'var(--text-subtle)',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}>
+                  <ChevronDown size={14} />
+                </div>
+              </div>
+            </div>
             {isConnected && (
-              <span className="chip chip-claimed" style={{ fontSize: '11px' }}>
+              <span className="chip chip-claimed" style={{ fontSize: '11px', margin: 0 }}>
                 <span className="chip-dot"></span>
                 Level {highestClaimedLevel + 1} / 5
               </span>
@@ -558,7 +670,7 @@ export default function LadderPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.9rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: 'var(--text-muted)' }}>Active Event:</span>
-                  <span style={{ fontWeight: 600, color: 'var(--secondary)' }}>{eventTitle || 'Credify Hackathon Ladder'}</span>
+                  <span style={{ fontWeight: 600, color: 'var(--secondary)' }}>{activeEventTitle}</span>
                 </div>
                 
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>

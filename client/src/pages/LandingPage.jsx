@@ -292,21 +292,19 @@ export default function LandingPage() {
                   <div className="guide-card-icon-wrapper">
                     <Wallet size={20} />
                   </div>
-                  <h3 className="guide-card-title">Connect MetaMask</h3>
+                  <h3 className="guide-card-title">Download MetaMask</h3>
                   <p className="guide-card-desc">
-                    Use your installed MetaMask wallet to securely manage and claim credentials.
+                    Install the MetaMask browser extension or mobile app to securely manage and claim credentials.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowGuide(false);
-                    navigate('/claim');
-                  }}
+                <a
+                  href="https://metamask.io/download"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="guide-card-btn guide-card-btn-metamask"
                 >
-                  Continue to Connect
-                </button>
+                  Download MetaMask
+                </a>
               </div>
 
               {/* Step 2 */}

@@ -18,6 +18,14 @@ const MetaMaskIcon = () => (
   </svg>
 );
 
+const CoinbaseWalletIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+    <rect width="32" height="32" rx="16" fill="#0052FF"/>
+    <path d="M9 16C9 12.134 12.134 9 16 9C19.866 9 23 12.134 23 16C23 19.866 19.866 23 16 23C12.134 23 9 19.866 9 16Z" fill="white"/>
+    <rect x="13.5" y="13.5" width="5" height="5" rx="1" fill="#0052FF"/>
+  </svg>
+);
+
 export default function ConnectWalletButton({ style, className, ...props }) {
   const { address, isConnected } = useAccount();
   const { connect, connectors, isPending } = useConnect();
@@ -81,16 +89,44 @@ export default function ConnectWalletButton({ style, className, ...props }) {
 
   const handleOpenMetaMaskDeepLink = () => {
     const deepLink = `https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}${window.location.search}`;
-    window.open(deepLink, '_blank');
+    window.location.href = deepLink;
   };
 
-  const handleConnectInjected = () => {
-    if (isMobile && !providerReady) {
+  // ── Mobile: directly connect, no modal ──
+  // The MetaMask SDK connector handles the deep link / in-app browser detection automatically.
+  const handleMobileConnect = () => {
+    const mmConnector =
+      connectors.find(c => c.id === 'metaMask') ||
+      connectors.find(c => c.id === 'injected') ||
+      connectors.find(c => c.type === 'injected') ||
+      connectors[0];
+
+    if (!mmConnector) {
       handleOpenMetaMaskDeepLink();
       return;
     }
 
-    // Priority: named 'metaMask' > named 'injected' > name includes 'metamask' > first available
+    connect(
+      { connector: mmConnector },
+      {
+        onError: (err) => {
+          console.error('[Mobile connect]', err);
+          if (err?.name === 'ConnectorAlreadyConnectedError') return;
+          if (err?.message?.includes('rejected') || err?.code === 4001) return;
+          // All other failures on mobile → send to MetaMask app
+          handleOpenMetaMaskDeepLink();
+        }
+      }
+    );
+  };
+
+  // ── Desktop: modal option → injected connector ──
+  const handleConnectInjected = () => {
+    if (!providerReady) {
+      window.open('https://metamask.io/download', '_blank', 'noopener,noreferrer');
+      return;
+    }
+
     const injConnector =
       connectors.find(c => c.id === 'metaMask') ||
       connectors.find(c => c.id === 'injected') ||
@@ -98,31 +134,51 @@ export default function ConnectWalletButton({ style, className, ...props }) {
       connectors.find(c => c.type === 'injected') ||
       connectors[0];
 
-    if (injConnector) {
+    if (!injConnector) return;
+
+    connect(
+      { connector: injConnector },
+      {
+        onSuccess: () => setShowConnectModal(false),
+        onError: (err) => {
+          console.error('Wallet connect failed:', err);
+          if (err?.name === 'ConnectorAlreadyConnectedError') { setShowConnectModal(false); return; }
+          if (err?.message?.includes('rejected') || err?.code === 4001) return;
+          if (err?.message?.toLowerCase().includes('already pending') || err?.code === -32002) {
+            alert('A MetaMask request is already pending. Open your MetaMask extension and approve it.');
+            return;
+          }
+          alert('Failed to connect: ' + (err?.message || 'Unknown error'));
+        }
+      }
+    );
+  };
+
+  const handleConnectCoinbase = () => {
+    const cbConnector =
+      connectors.find(c => c.id === 'coinbaseWallet') ||
+      connectors.find(c => c.id === 'coinbaseWalletSDK') ||
+      connectors.find(c => c.name?.toLowerCase().includes('coinbase'));
+
+    if (cbConnector) {
       connect(
-        { connector: injConnector },
+        { connector: cbConnector },
         {
           onSuccess: () => setShowConnectModal(false),
           onError: (err) => {
-            console.error('Wallet connect failed:', err);
+            console.error('Coinbase Wallet connect failed:', err);
             if (err?.name === 'ConnectorAlreadyConnectedError') {
               setShowConnectModal(false);
               return;
             }
-            if (err?.message?.includes('rejected') || err?.code === 4001) {
-              alert('Connection rejected. Please approve the connection in MetaMask.');
-            } else if (!window.ethereum) {
-              alert('No wallet extension detected. Please install MetaMask from metamask.io, then refresh the page.');
-            } else {
-              alert('Failed to connect: ' + (err?.message || 'Unknown error') + '\n\nTry refreshing the page or disabling conflicting extensions.');
-            }
+            alert('Failed to connect: ' + (err?.message || 'Unknown error'));
           }
         }
       );
       return;
     }
 
-    alert('No browser wallet connector is available. Please install MetaMask from metamask.io and refresh the page.');
+    alert('Coinbase Wallet connector is not available. Please check configuration.');
   };
 
   return (
@@ -155,7 +211,7 @@ export default function ConnectWalletButton({ style, className, ...props }) {
       {!isConnected ? (
         <button
           id="connect-wallet-btn"
-          onClick={() => setShowConnectModal(true)}
+          onClick={() => isMobile ? handleMobileConnect() : setShowConnectModal(true)}
           disabled={isPending}
           className="btn btn-primary animate-pulse-glow"
           style={{ padding: '0 20px', height: '40px', fontSize: '14px', width: style?.width || 'auto' }}
@@ -468,7 +524,7 @@ export default function ConnectWalletButton({ style, className, ...props }) {
 
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
               {isMobile 
-                ? 'Launch your MetaMask application to securely claim your credentials.'
+                ? 'Open this page inside MetaMask Mobile, or use Coinbase Wallet to scan a QR code.'
                 : 'Connect with MetaMask to manage and claim your digital credential pass.'
               }
             </p>
@@ -511,11 +567,53 @@ export default function ConnectWalletButton({ style, className, ...props }) {
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '2px' }}>
                       {isMobile
-                        ? 'Open MetaMask app'
+                        ? providerReady ? 'Wallet detected — tap to connect' : 'Use MetaMask in-app browser'
                         : providerReady
                           ? 'Extension detected'
-                          : 'Use installed browser extension'
+                          : 'Download MetaMask'
                       }
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight size={16} style={{ color: 'var(--text-subtle)' }} />
+              </button>
+
+              <button
+                onClick={handleConnectCoinbase}
+                className="wallet-connect-option"
+                style={{
+                  width: '100%',
+                  background: 'rgba(0, 82, 255, 0.06)',
+                  border: '1px solid rgba(0, 82, 255, 0.25)',
+                  borderRadius: '16px',
+                  padding: '16px',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                  transition: 'transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(0, 82, 255, 0.12)';
+                  e.currentTarget.style.borderColor = 'rgba(0, 82, 255, 0.45)';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'rgba(0, 82, 255, 0.06)';
+                  e.currentTarget.style.borderColor = 'rgba(0, 82, 255, 0.25)';
+                  e.currentTarget.style.transform = 'none';
+                }}
+              >
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <CoinbaseWalletIcon />
+                  <div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {isMobile ? 'Coinbase Wallet' : 'Coinbase Wallet / QR'}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '2px' }}>
+                      {isMobile ? 'Connect with Coinbase Wallet app' : 'Scan QR code or use Coinbase app'}
                     </div>
                   </div>
                 </div>

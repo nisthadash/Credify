@@ -74,7 +74,7 @@ export default function VerifyPage() {
             </div>
 
             {/* Input + button */}
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px' }} className="btn-stack-mobile">
               <div className="input-wrapper" style={{ flex: 1 }}>
                 <Search size={15} className="input-icon" />
                 <input

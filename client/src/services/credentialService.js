@@ -31,16 +31,16 @@ export async function checkEligibility(address, eventId = null) {
   }
 }
 
-export async function saveClaim({ tokenId, walletAddress, eventId, txHash, metadataUri, tierLevel }) {
+export async function saveClaim({ tokenId, walletAddress, eventId, txHash, metadataUri, tierLevel, eventName }) {
   try {
     await apiFetch('/credentials/save', {
       method: 'POST',
-      body: JSON.stringify({ tokenId, walletAddress, eventId, txHash, metadataUri, tierLevel }),
+      body: JSON.stringify({ tokenId, walletAddress, eventId, txHash, metadataUri, tierLevel, eventName }),
     });
   } catch {
     console.warn('[credentialService] saveClaim failed — storing in localStorage as fallback.');
     const existing = JSON.parse(localStorage.getItem('credify_credentials') || '[]');
-    existing.push({ tokenId, walletAddress, eventId, txHash, metadataUri, tierLevel, eventDate: new Date().toISOString(), eventName: 'Credify Workshop (Demo)' });
+    existing.push({ tokenId, walletAddress, eventId, txHash, metadataUri, tierLevel, eventDate: new Date().toISOString(), eventName: eventName || 'Credify Workshop (Demo)' });
     localStorage.setItem('credify_credentials', JSON.stringify(existing));
   }
 }
