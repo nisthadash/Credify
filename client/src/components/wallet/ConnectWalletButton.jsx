@@ -116,6 +116,8 @@ export default function ConnectWalletButton({ style, className, ...props }) {
             }
             if (err?.message?.includes('rejected') || err?.code === 4001) {
               alert('Connection rejected. Please approve the connection in MetaMask.');
+            } else if (err?.message?.toLowerCase().includes('already pending') || err?.code === -32002) {
+              alert('A connection request is already pending. Please click your MetaMask extension icon to approve the connection, or refresh the page.');
             } else if (!window.ethereum) {
               alert('No wallet extension detected. Please install MetaMask from https://metamask.io/download, then refresh the page.');
             } else {
