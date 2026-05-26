@@ -93,17 +93,13 @@ export default function ConnectWalletButton({ style, className, ...props }) {
   };
 
   const handleConnectInjected = () => {
-    if (isMobile && !providerReady) {
-      handleOpenMetaMaskDeepLink();
-      return;
-    }
-
+    // On desktop with no provider: redirect to download page
     if (!isMobile && !providerReady) {
       window.open('https://metamask.io/download', '_blank', 'noopener,noreferrer');
       return;
     }
 
-    // Priority: named 'metaMask' > named 'injected' > name includes 'metamask' > first available
+    // Priority: named 'metaMask' > named 'injected' > name includes 'metamask' > any injected type > first available
     const injConnector =
       connectors.find(c => c.id === 'metaMask') ||
       connectors.find(c => c.id === 'injected') ||
@@ -123,11 +119,19 @@ export default function ConnectWalletButton({ style, className, ...props }) {
               return;
             }
             if (err?.message?.includes('rejected') || err?.code === 4001) {
-              alert('Connection rejected. Please approve the connection in MetaMask.');
-            } else if (err?.message?.toLowerCase().includes('already pending') || err?.code === -32002) {
-              alert('A connection request is already pending. Please click your MetaMask extension icon to approve the connection, or refresh the page.');
-            } else if (!window.ethereum) {
-              alert('No wallet extension detected. Please install MetaMask from https://metamask.io/download, then refresh the page.');
+              // User rejected — don't offer deep link
+              return;
+            }
+            if (err?.message?.toLowerCase().includes('already pending') || err?.code === -32002) {
+              alert('A connection request is already pending in your wallet. Please open your wallet app and approve it.');
+              return;
+            }
+            // On mobile, if injected failed (no provider at all), offer deep link as fallback
+            if (isMobile) {
+              const confirmed = window.confirm(
+                'No wallet detected in this browser.\n\nOpen MetaMask app to connect?'
+              );
+              if (confirmed) handleOpenMetaMaskDeepLink();
             } else {
               alert('Failed to connect: ' + (err?.message || 'Unknown error') + '\n\nTry refreshing the page or disabling conflicting extensions.');
             }
@@ -137,6 +141,12 @@ export default function ConnectWalletButton({ style, className, ...props }) {
       return;
     }
 
+    // No connectors at all — last resort
+    if (isMobile) {
+      handleOpenMetaMaskDeepLink();
+    } else {
+      window.open('https://metamask.io/download', '_blank', 'noopener,noreferrer');
+    }
   };
 
   const handleConnectCoinbase = () => {
@@ -509,7 +519,7 @@ export default function ConnectWalletButton({ style, className, ...props }) {
 
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
               {isMobile 
-                ? 'Launch your MetaMask application to securely claim your credentials.'
+                ? 'Open this page inside MetaMask Mobile, or use Coinbase Wallet to scan a QR code.'
                 : 'Connect with MetaMask to manage and claim your digital credential pass.'
               }
             </p>
@@ -552,7 +562,7 @@ export default function ConnectWalletButton({ style, className, ...props }) {
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '2px' }}>
                       {isMobile
-                        ? 'Open MetaMask app'
+                        ? providerReady ? 'Wallet detected — tap to connect' : 'Use MetaMask in-app browser'
                         : providerReady
                           ? 'Extension detected'
                           : 'Download MetaMask'
@@ -595,10 +605,10 @@ export default function ConnectWalletButton({ style, className, ...props }) {
                   <CoinbaseWalletIcon />
                   <div>
                     <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      Coinbase Wallet / QR
+                      {isMobile ? 'Coinbase Wallet' : 'Coinbase Wallet / QR'}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '2px' }}>
-                      Scan QR code or use Coinbase app
+                      {isMobile ? 'Connect with Coinbase Wallet app' : 'Scan QR code or use Coinbase app'}
                     </div>
                   </div>
                 </div>
