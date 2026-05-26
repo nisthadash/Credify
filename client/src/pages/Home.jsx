@@ -1,924 +1,530 @@
 import React, { useState, useEffect } from 'react';
-import { useAccount, useChainId } from 'wagmi';
-import { CheckCircle2, ShieldAlert, Award, Star, Flame, Compass, ChevronRight, Share2, ExternalLink, Lock, Unlock, Sparkles, RefreshCw, Zap, Info, Trophy, Sliders, Check } from 'lucide-react';
-import { useEligibility } from '../hooks/useEligibility.js';
-import { useUGFClaim } from '../hooks/useUGFClaim.js';
-import { saveClaim, getCredentialsByWallet } from '../services/credentialService.js';
-import { createPublicClient, http } from 'viem';
-import { baseSepolia } from 'viem/chains';
-import { Contract } from 'ethers';
-import { useEthersSigner } from '../utils/ethers.js';
-import { CONTRACT_ADDRESS, ABI } from '../config/contract.js';
+import { useAccount } from 'wagmi';
+import { Link } from 'react-router-dom';
+import {
+  Sparkles, ShieldCheck, Zap, Trophy, ChevronRight,
+  Calendar, Tag, RefreshCw, Info, CheckCircle2, AlertCircle
+} from 'lucide-react';
+import { checkEligibility } from '../services/credentialService.js';
 import ConnectWalletButton from '../components/wallet/ConnectWalletButton.jsx';
 
-const TIERS = [
-  { level: 0, name: 'Event Pass', description: 'Your entry pass for registering and checking in.', icon: Compass, color: '#00f2fe', subtitle: 'Tier 0 - Registration' },
-  { level: 1, name: 'Participant Badge', description: 'Verifies active workshop attendance and hacking.', icon: Flame, color: '#3b82f6', subtitle: 'Tier 1 - Attendance' },
-  { level: 2, name: 'Finalist Badge', description: 'Awarded to teams selected for final pitches.', icon: Star, color: '#a855f7', subtitle: 'Tier 2 - Competition' },
-  { level: 3, name: 'Winner Certificate', description: 'Tamper-proof recognition for top place finishes.', icon: Award, color: '#ec4899', subtitle: 'Tier 3 - Triumph' },
-  { level: 4, name: 'Mentor / Volunteer', description: 'Recognizes contributions of guides and event staff.', icon: CheckCircle2, color: '#10b981', subtitle: 'Tier 4 - Leadership' }
-];
-
-const UGF_STEPS = [
-  { key: 'quoting', number: 1, title: 'Gas Quotation', desc: 'Calculating contract interaction fee in Mock USD' },
-  { key: 'settling', number: 2, title: 'USD Settlement', desc: 'Deducting gas cost ($0.15) from your credit balance' },
-  { key: 'executing', number: 3, title: 'UGF Relayer Execution', desc: 'Relayer pays ETH gas and submits transaction on Base Sepolia' },
-  { key: 'confirming', number: 4, title: 'Block Confirmation', desc: 'Waiting for the block to be finalized onchain' }
+/* ──────────────────────────────────────────────
+   Feature Cards displayed in the hero section
+────────────────────────────────────────────── */
+const FEATURES = [
+  {
+    icon: ShieldCheck,
+    color: '#2563EB',
+    glow: 'rgba(37,99,235,0.18)',
+    title: 'Claim Event Passes',
+    desc: 'Get your onchain credential for attending, competing, or mentoring at hackathons — gaslessly.',
+  },
+  {
+    icon: Zap,
+    color: '#818CF8',
+    glow: 'rgba(129,140,248,0.18)',
+    title: 'Build Progression',
+    desc: 'Climb the credential ladder tier by tier. Each stage is verifiable and tamper-proof onchain.',
+  },
+  {
+    icon: Trophy,
+    color: '#10b981',
+    glow: 'rgba(16,185,129,0.18)',
+    title: 'Showcase Achievements',
+    desc: 'Share your finalist badge, winner certificate, or mentor credential with the world.',
+  },
 ];
 
 export default function Home() {
   const { address, isConnected } = useAccount();
-  const chainId = useChainId();
 
-  // Load actual claimed credentials
-  const [credentials, setCredentials] = useState([]);
+  /* ── Active hackathon event state ── */
+  const [eventInfo, setEventInfo] = useState(null);       // { eventTitle, eventId, isEligible }
+  const [loadingEvent, setLoadingEvent] = useState(false);
+  const [eventError, setEventError] = useState('');
 
-  // On-chain owner and eligibility checks
-  const signer = useEthersSigner();
-  const [contractOwner, setContractOwner] = useState('');
-  const [onchainEligible, setOnchainEligible] = useState(false);
-  const [onchainClaimed, setOnchainClaimed] = useState(false);
-  const [checkingOnchain, setCheckingOnchain] = useState(false);
-  const [whitelisting, setWhitelisting] = useState(false);
-
-  const checkOnchainStatus = async () => {
+  const fetchActiveEvent = async () => {
     if (!address) return;
-    setCheckingOnchain(true);
+    setLoadingEvent(true);
+    setEventError('');
     try {
-      const publicClient = createPublicClient({
-        chain: baseSepolia,
-        transport: http('https://sepolia.base.org')
-      });
-      
-      const ownerAddress = await publicClient.readContract({
-        address: CONTRACT_ADDRESS,
-        abi: ABI,
-        functionName: 'owner'
-      });
-      setContractOwner(ownerAddress);
-
-      const isUserEligible = await publicClient.readContract({
-        address: CONTRACT_ADDRESS,
-        abi: ABI,
-        functionName: 'isEligible',
-        args: [address]
-      });
-      setOnchainEligible(isUserEligible);
-
-      const credentialInfo = await publicClient.readContract({
-        address: CONTRACT_ADDRESS,
-        abi: ABI,
-        functionName: 'getCredential',
-        args: [address]
-      });
-      setOnchainClaimed(credentialInfo[2]); // Third index is claimed (bool)
-      console.log('[Onchain Check] Owner:', ownerAddress, 'User:', address, 'Eligible:', isUserEligible, 'Claimed:', credentialInfo[2]);
+      const data = await checkEligibility(address);
+      if (data && data.eventId) {
+        setEventInfo({
+          eventTitle: data.eventTitle || 'Unnamed Event',
+          eventId: data.eventId,
+          isEligible: data.isEligible,
+        });
+      } else {
+        setEventInfo(null);
+      }
     } catch (err) {
-      console.error('Error checking onchain status:', err);
+      console.error('Failed fetching active event:', err);
+      setEventError('Could not fetch active hackathon event.');
+      setEventInfo(null);
     } finally {
-      setCheckingOnchain(false);
-    }
-  };
-
-  const handleWhitelistOnchain = async () => {
-    if (!signer || !address) return;
-    setWhitelisting(true);
-    try {
-      const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
-      console.log('[Onchain Whitelist] Sending addEligible transaction for:', address);
-      const tx = await contract.addEligible(address);
-      console.log('[Onchain Whitelist] Transaction sent:', tx.hash);
-      
-      // Wait for 1 confirmation
-      const receipt = await tx.wait();
-      console.log('[Onchain Whitelist] Transaction confirmed:', receipt);
-      
-      // Refresh status
-      await checkOnchainStatus();
-      alert('Wallet whitelisted on-chain successfully!');
-    } catch (err) {
-      console.error('Error whitelisting onchain:', err);
-      alert('Failed to whitelist on-chain: ' + (err.reason || err.message || err));
-    } finally {
-      setWhitelisting(false);
+      setLoadingEvent(false);
     }
   };
 
   useEffect(() => {
     if (isConnected && address) {
-      checkOnchainStatus();
+      fetchActiveEvent();
     } else {
-      setContractOwner('');
-      setOnchainEligible(false);
-      setOnchainClaimed(false);
+      setEventInfo(null);
+      setEventError('');
     }
   }, [address, isConnected]);
-  const [loadingCredentials, setLoadingCredentials] = useState(false);
-  const [simulateApproval, setSimulateApproval] = useState(false);
-
-  // UGF Gasless Claiming States
-  const [claimingTier, setClaimingTier] = useState(null); // tier level object being claimed/upgraded
-  const [ugfStep, setUgfStep] = useState(''); // 'quoting' | 'settling' | 'executing' | 'confirming' | 'success'
-  const [txDetails, setTxDetails] = useState({ tokenId: null, txHash: '', tier: '', metadataUri: '' });
-  const [ugfError, setUgfError] = useState('');
-
-  // Standard eligibility check for Event Pass (Tier 0)
-  const { checked, isEligible, eventTitle, eventId, loading: loadingEligibility } = useEligibility(address, isConnected);
-
-  // Real UGF Claim Flow Hook
-  const { ugfStep: realUgfStep, txDetails: realTxDetails, error: realError, triggerClaim, reset: resetRealUgf } = useUGFClaim();
-
-  // Sync real UGF states to local states when claiming Tier 0 (onchain)
-  useEffect(() => {
-    if (claimingTier && claimingTier.level === 0) {
-      setUgfStep(realUgfStep);
-      setTxDetails(realTxDetails);
-      if (realError) {
-        setUgfError(realError);
-      }
-    }
-  }, [realUgfStep, realTxDetails, realError, claimingTier]);
-
-  const loadCredentials = async () => {
-    if (!address) return;
-    setLoadingCredentials(true);
-    try {
-      const data = await getCredentialsByWallet(address);
-      setCredentials(data || []);
-    } catch (err) {
-      console.error('Failed loading credentials:', err);
-    } finally {
-      setLoadingCredentials(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isConnected && address) {
-      loadCredentials();
-    } else {
-      setCredentials([]);
-    }
-  }, [address, isConnected]);
-
-  // Reset states on disconnect
-  useEffect(() => {
-    if (!isConnected || !address) {
-      setUgfStep('');
-      setUgfError('');
-      setClaimingTier(null);
-      setSimulateApproval(false);
-      resetRealUgf();
-    }
-  }, [isConnected, address]);
-
-  // Smooth scroll to UGF console when claimingTier changes (after DOM renders the new console size)
-  useEffect(() => {
-    if (claimingTier) {
-      const timer = setTimeout(() => {
-        const consoleEl = document.getElementById('ugf-console');
-        if (consoleEl) {
-          consoleEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 80);
-      return () => clearTimeout(timer);
-    }
-  }, [claimingTier]);
-
-  // Computed state calculations
-  const claimedLevels = new Set(credentials.map(c => c.tierLevel));
-  if (onchainClaimed) {
-    claimedLevels.add(0);
-  }
-  const highestClaimedLevel = claimedLevels.size > 0 
-    ? Math.max(...Array.from(claimedLevels)) 
-    : -1;
-
-  // Determine stage status
-  const getTierStatus = (level) => {
-    if (claimedLevels.has(level)) {
-      return 'claimed';
-    }
-    
-    // Level 0 is eligible if connected, and standard eligibility or simulator is on
-    if (level === 0) {
-      if (highestClaimedLevel === -1 && (isEligible || simulateApproval)) {
-        return 'eligible';
-      }
-      return highestClaimedLevel >= 0 ? 'locked-prereq' : 'locked';
-    }
-
-    // For level > 0, it is eligible if the previous level is claimed and simulator is on (approving next tier)
-    if (level === highestClaimedLevel + 1) {
-      if (simulateApproval) {
-        return 'eligible';
-      }
-      return 'awaiting-approval';
-    }
-
-    return 'locked';
-  };
-
-  // UGF Gasless Minting Simulator
-  const triggerUgfClaim = async () => {
-    if (claimingTier === null) return;
-    setUgfError('');
-    
-    if (claimingTier.level === 0 && onchainEligible) {
-      try {
-        // Real UGF flow
-        await triggerClaim(address, eventId || '664cc56a7d7324a0d85485ab', 0);
-        // Reload credentials
-        await loadCredentials();
-        setSimulateApproval(false);
-      } catch (err) {
-        console.error('Real UGF claim failed:', err);
-        setUgfError(err.message || 'Real UGF claim failed');
-        setUgfStep('');
-      }
-    } else {
-      // Simulated UGF flow for level > 0 OR when user is not whitelisted on-chain (so they can still demo)
-      // Step 1: Quote (Calculates gas in Mock USD)
-      setUgfStep('quoting');
-      await new Promise(r => setTimeout(r, 1800));
-
-      // Step 2: Settle (Approve payment in Mock USD)
-      setUgfStep('settling');
-      await new Promise(r => setTimeout(r, 1600));
-
-      // Step 3: Execute (UGF pays ETH gas and executes contract)
-      setUgfStep('executing');
-      await new Promise(r => setTimeout(r, 2000));
-
-      // Step 4: Confirm (Block is finalized, mint is confirmed onchain)
-      setUgfStep('confirming');
-      
-      try {
-        const mockTxHash = '0x' + Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join('');
-        const randomTokenId = Math.floor(Math.random() * 500) + 1;
-        const protocol = window.location.protocol;
-        const host = window.location.host;
-        const mockMetadata = `${protocol}//${host}/api/credentials/metadata/${address}/event-tier-${claimingTier.level}`;
-
-        // Save claim through standardized credential service
-        await saveClaim({
-          tokenId: randomTokenId,
-          walletAddress: address,
-          eventId: '664cc56a7d7324a0d85485ab', // Standard identifier
-          txHash: mockTxHash,
-          metadataUri: mockMetadata,
-          tierLevel: claimingTier.level
-        });
-
-        setTxDetails({
-          tokenId: randomTokenId,
-          txHash: mockTxHash,
-          tier: claimingTier.name,
-          metadataUri: mockMetadata
-        });
-        
-        await new Promise(r => setTimeout(r, 1200));
-        setUgfStep('success');
-
-        // Reload claimed credentials immediately to update UI status
-        await loadCredentials();
-        
-        // Turn off simulator approval so they have to toggle it again for the next level
-        setSimulateApproval(false);
-      } catch (err) {
-        console.error('Simulated UGF claim failed:', err);
-        setUgfError(err.message || 'Simulated UGF claim failed');
-        setUgfStep('');
-      }
-    }
-  };
-
-  const handleResetDemo = () => {
-    localStorage.removeItem('credify_credentials');
-    setCredentials([]);
-    setSimulateApproval(false);
-    setClaimingTier(null);
-    setUgfStep('');
-    setUgfError('');
-    resetRealUgf();
-    alert('Demo reset successfully! All mock credentials have been cleared.');
-  };
-
-  // Find info about the credential of a claimed tier
-  const getClaimedTxDetails = (level) => {
-    return credentials.find(c => c.tierLevel === level);
-  };
 
   return (
     <div className="container page-content">
-      {/* Title Hero */}
-      <section style={{ textAlign: 'center', marginBottom: '50px', marginTop: '10px' }}>
-        <div className="eyebrow" style={{ marginBottom: '16px' }}>
+
+      {/* ── Hero Section ── */}
+      <section style={{ textAlign: 'center', marginBottom: '72px', marginTop: '10px' }}>
+
+        {/* Eyebrow */}
+        <div className="eyebrow" style={{ marginBottom: '20px', display: 'inline-flex' }}>
           <Sparkles size={13} style={{ color: 'var(--secondary)' }} />
-          <span>PROGRESSIVE CREDENTIAL LADDER</span>
+          <span>ONCHAIN CREDENTIALS FOR WEB3 EVENTS</span>
         </div>
-        <h1 className="gradient-text" style={{ fontSize: '3.2rem', marginBottom: '16px', lineHeight: 1.15 }}>
-          Onchain Hackathon Progression
+
+        {/* Main heading */}
+        <h1
+          style={{
+            fontSize: 'clamp(2.6rem, 5vw, 4rem)',
+            marginBottom: '20px',
+            lineHeight: 1.1,
+            letterSpacing: '-0.03em',
+          }}
+        >
+          <span className="gradient-text">Credify</span>
         </h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '1.15rem', maxWidth: '700px', margin: '0 auto', lineHeight: 1.6 }}>
-          Zero ETH. Zero gas friction. Build your reputation throughout the hackathon in 5 sequential tiers, claimable gaslessly via the Universal Gas Framework (UGF).
+
+        {/* Subtitle */}
+        <p
+          style={{
+            color: 'var(--text-muted)',
+            fontSize: 'clamp(1rem, 2vw, 1.2rem)',
+            maxWidth: '560px',
+            margin: '0 auto 12px',
+            lineHeight: 1.6,
+            fontWeight: 500,
+          }}
+        >
+          Onchain credentials for hackathons and communities
         </p>
+
+        {/* Description */}
+        <p
+          style={{
+            color: 'var(--text-subtle)',
+            fontSize: '1rem',
+            maxWidth: '640px',
+            margin: '0 auto 36px',
+            lineHeight: 1.7,
+          }}
+        >
+          Credify helps participants claim event passes, build verifiable progression, and
+          showcase hackathon achievements through gasless onchain credentials.
+        </p>
+
+        {/* CTA Buttons */}
+        <div
+          style={{
+            display: 'flex',
+            gap: '14px',
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+          }}
+        >
+          <Link
+            to="/ladder"
+            id="home-view-ladder-btn"
+            className="btn btn-primary btn-lg"
+            style={{ gap: '10px' }}
+          >
+            View Progression Ladder <ChevronRight size={18} />
+          </Link>
+          <Link
+            to="/claim"
+            id="home-claim-pass-btn"
+            className="btn btn-ghost btn-lg"
+          >
+            Claim Event Pass
+          </Link>
+        </div>
       </section>
 
-      {/* Main Grid Layout */}
-      <div className="home-main-grid">
-        
-        {/* Left Side: Interactive Progression Timeline */}
-        <div className="glass-panel" style={{ padding: '32px', position: 'relative' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
-            <h2 style={{ fontSize: '1.4rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Zap size={20} style={{ color: 'var(--secondary)' }} />
-              Progression Ladder
-            </h2>
-            {isConnected && (
-              <span className="chip chip-claimed" style={{ fontSize: '11px' }}>
-                <span className="chip-dot"></span>
-                Level {highestClaimedLevel + 1} / 5
-              </span>
-            )}
-          </div>
+      {/* ── Feature Cards ── */}
+      <section style={{ marginBottom: '80px' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: '20px',
+          }}
+        >
+          {FEATURES.map(({ icon: Icon, color, glow, title, desc }) => (
+            <div
+              key={title}
+              className="glass-panel"
+              style={{
+                padding: '28px',
+                position: 'relative',
+                overflow: 'hidden',
+                transition: 'transform 0.25s ease, box-shadow 0.25s ease',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = `0 20px 50px rgba(0,0,0,0.4), 0 0 30px ${glow}`;
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '';
+              }}
+            >
+              {/* Subtle radial glow behind icon */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '-24px',
+                  left: '-24px',
+                  width: '120px',
+                  height: '120px',
+                  borderRadius: '50%',
+                  background: glow,
+                  filter: 'blur(32px)',
+                  pointerEvents: 'none',
+                }}
+              />
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', position: 'relative' }}>
-            
-            {TIERS.map((tier, idx) => {
-              const Icon = tier.icon;
-              const status = getTierStatus(tier.level);
-              const isClaimed = status === 'claimed';
-              const isEligible = status === 'eligible';
-              const isAwaiting = status === 'awaiting-approval';
-              const isLocked = status === 'locked' || status === 'locked-prereq';
-              const claimedTx = getClaimedTxDetails(tier.level);
-
-              // Styling values based on state
-              let borderStyle = '1px solid rgba(255, 255, 255, 0.06)';
-              let bgStyle = 'rgba(255, 255, 255, 0.02)';
-              let opacityStyle = '1';
-              let iconBg = 'var(--surface-alt)';
-              let iconBorderColor = 'rgba(255, 255, 255, 0.1)';
-              let glowStyle = 'none';
-
-              if (isClaimed) {
-                borderStyle = '1px solid rgba(34, 197, 94, 0.3)';
-                bgStyle = 'rgba(34, 197, 94, 0.03)';
-                iconBg = 'rgba(34, 197, 94, 0.1)';
-                iconBorderColor = 'var(--success)';
-                glowStyle = '0 0 15px rgba(34, 197, 94, 0.1)';
-              } else if (isEligible) {
-                borderStyle = `1px solid ${tier.color}`;
-                bgStyle = `${tier.color}07`;
-                iconBg = `${tier.color}15`;
-                iconBorderColor = tier.color;
-                glowStyle = `0 0 20px ${tier.color}25`;
-              } else if (isLocked) {
-                opacityStyle = '0.55';
-              } else if (isAwaiting) {
-                borderStyle = '1px solid rgba(245, 158, 11, 0.25)';
-                bgStyle = 'rgba(245, 158, 11, 0.02)';
-                opacityStyle = '0.85';
-              }
-
-              return (
-                <div 
-                  key={tier.level} 
-                  className="timeline-row"
-                  style={{ 
-                    opacity: opacityStyle,
-                  }}
-                >
-                  {/* Left Side: Timeline column with connection lines and node icon */}
-                  <div className="timeline-line-col">
-                    {/* Upper line segment (connects to previous row) */}
-                    {idx > 0 && (
-                      <div 
-                        className="timeline-line-upper"
-                        style={{
-                          background: claimedLevels.has(TIERS[idx - 1].level) ? 'var(--success)' : 'rgba(255,255,255,0.06)',
-                        }} 
-                      />
-                    )}
-
-                    {/* Lower line segment (connects to next row through the gap) */}
-                    {idx < TIERS.length - 1 && (
-                      <div 
-                        className="timeline-line-lower"
-                        style={{
-                          background: claimedLevels.has(tier.level) ? 'var(--success)' : 'rgba(255,255,255,0.06)',
-                        }} 
-                      />
-                    )}
-
-                    {/* Node Icon Container */}
-                    <div 
-                      className="timeline-node"
-                      style={{ 
-                        background: iconBg, 
-                        border: `2px solid ${iconBorderColor}`,
-                        boxShadow: isClaimed ? '0 0 10px rgba(34,197,94,0.3)' : (isEligible ? `0 0 10px ${tier.color}40` : 'none'),
-                      }}
-                    >
-                      {isClaimed ? (
-                        <CheckCircle2 size={24} style={{ color: 'var(--success)' }} />
-                      ) : isAwaiting ? (
-                        <Lock size={20} style={{ color: 'var(--warning)' }} />
-                      ) : isLocked ? (
-                        <Lock size={20} style={{ color: 'var(--text-subtle)' }} />
-                      ) : (
-                        <Icon size={24} style={{ color: tier.color }} />
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Right Side: Content Card */}
-                  <div 
-                    className={`card ${isEligible ? 'pulse-glow' : ''}`}
-                    style={{ 
-                      flex: 1,
-                      padding: '20px', 
-                      borderRadius: 'var(--radius-lg)', 
-                      border: borderStyle,
-                      background: bgStyle,
-                      boxShadow: glowStyle,
-                      transition: 'all 0.3s ease'
-                    }}
-                  >
-                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                      <span style={{ color: 'var(--text-subtle)', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        {tier.subtitle}
-                      </span>
-                      {isClaimed && (
-                        <span className="chip chip-verified" style={{ fontSize: '9px', padding: '2px 8px' }}>
-                          <span className="chip-dot"></span> Claimed
-                        </span>
-                      )}
-                      {isEligible && (
-                        <span className="chip chip-eligible" style={{ fontSize: '9px', padding: '2px 8px', animation: 'pulse 2s infinite' }}>
-                          <span className="chip-dot"></span> Ready to Claim
-                        </span>
-                      )}
-                      {isAwaiting && (
-                        <span className="chip chip-pending" style={{ fontSize: '9px', padding: '2px 8px' }}>
-                          <span className="chip-dot"></span> Awaiting Approval
-                        </span>
-                      )}
-                    </div>
-
-                    <h3 style={{ fontSize: '1.25rem', color: '#fff', marginBottom: '8px', fontFamily: 'var(--font-display)' }}>
-                      {tier.name}
-                    </h3>
-                    
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.4, marginBottom: isClaimed || isEligible || isAwaiting ? '14px' : '0' }}>
-                      {tier.description}
-                    </p>
-
-                    {/* Claimed Info Panel */}
-                    {isClaimed && claimedTx && (
-                      <div style={{ 
-                        background: 'rgba(0,0,0,0.2)', 
-                        padding: '12px 14px', 
-                        borderRadius: 'var(--radius-md)', 
-                        border: '1px solid rgba(255,255,255,0.04)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '6px',
-                        fontSize: '0.8rem'
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ color: 'var(--text-subtle)' }}>Token ID:</span>
-                          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--secondary)' }}>#{claimedTx.tokenId}</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ color: 'var(--text-subtle)' }}>Transaction:</span>
-                          <a 
-                            href={`https://sepolia.basescan.org/tx/${claimedTx.txHash}`} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            style={{ color: 'var(--text)', textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
-                          >
-                            Basescan <ExternalLink size={11} />
-                          </a>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '6px' }}>
-                          <span style={{ color: 'var(--text-subtle)' }}>Metadata URI:</span>
-                          <button 
-                            onClick={() => {
-                              navigator.clipboard.writeText(claimedTx.metadataUri);
-                              alert('Metadata URI copied to clipboard!');
-                            }}
-                            className="btn-sm btn-ghost"
-                            style={{ height: '24px', padding: '0 8px', fontSize: '10px' }}
-                          >
-                            <Share2 size={10} /> Share Pass
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Eligible Claims trigger button */}
-                    {isEligible && (
-                      <button 
-                        onClick={() => startClaimFlow(tier)}
-                        className="btn btn-sm btn-primary"
-                        style={{ background: tier.color, color: '#000', fontWeight: 700 }}
-                      >
-                        Claim Gasless via UGF <ChevronRight size={14} />
-                      </button>
-                    )}
-
-                    {/* Awaiting Approval note */}
-                    {isAwaiting && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--warning)', fontSize: '0.8rem' }}>
-                        <Info size={12} />
-                        <span>Awaiting event criteria completion. Use Developer Tools to simulate.</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Right Side: UGF Console + Live Connection + Demo tools */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          
-          {/* Active Wallet Connection Card */}
-          <div className="glass-panel" style={{ padding: '24px' }}>
-            <h3 style={{ fontSize: '1.2rem', marginBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Lock size={18} style={{ color: 'var(--primary)' }} /> Web3 Connection Status
-            </h3>
-            
-            {!isConnected ? (
-              <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                <ShieldAlert size={40} style={{ color: 'var(--warning)', marginBottom: '12px' }} />
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '18px' }}>
-                  Connect your wallet to view connection status and claim your credentials.
-                </p>
-                <ConnectWalletButton style={{ margin: '0 auto', display: 'inline-flex' }} />
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.9rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Active Event:</span>
-                  <span style={{ fontWeight: 600, color: 'var(--secondary)' }}>{eventTitle || 'Credify Hackathon Ladder'}</span>
-                </div>
-                
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Your Wallet:</span>
-                  <span style={{ fontFamily: 'var(--font-mono)', color: '#fff' }}>
-                    {address.substring(0, 6)}...{address.substring(address.length - 4)}
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>ETH Balance:</span>
-                  <span style={{ color: 'var(--error)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    0.000 ETH (No Gas Needed)
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Progression Status:</span>
-                  <span style={{ color: 'var(--success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    {highestClaimedLevel === 4 ? (
-                      <>
-                        Fully Completed! <Trophy size={14} />
-                      </>
-                    ) : (
-                      `Level ${highestClaimedLevel + 1} Eligible`
-                    )}
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Centralized UGF Gasless claiming console */}
-          <div 
-            className="glass-panel" 
-            id="ugf-console"
-            style={{ 
-              padding: '28px', 
-              border: claimingTier ? `1px solid ${claimingTier.color}` : '1px solid rgba(255,255,255,0.08)',
-              boxShadow: claimingTier ? `0 0 25px ${claimingTier.color}15` : 'none',
-              transition: 'all 0.3s ease'
-            }}
-          >
-            <h3 style={{ fontSize: '1.25rem', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Zap size={18} style={{ color: claimingTier ? claimingTier.color : 'var(--secondary)' }} />
-              UGF Gasless Console
-            </h3>
-
-            {!isConnected ? (
-              <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                <p style={{ color: 'var(--text-subtle)', fontSize: '0.9rem', marginBottom: '18px' }}>
-                  Connect your wallet to enable gasless credential minting.
-                </p>
-                <ConnectWalletButton style={{ margin: '0 auto', display: 'inline-flex' }} />
-              </div>
-            ) : !claimingTier ? (
-              <div style={{ padding: '10px 0', textAlign: 'center' }}>
-                <div style={{ 
-                  width: '48px', 
-                  height: '48px', 
-                  borderRadius: '50%', 
-                  background: 'rgba(255,255,255,0.02)', 
-                  border: '1px dashed rgba(255,255,255,0.1)',
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center',
-                  margin: '0 auto 12px'
-                }}>
-                  <Unlock size={20} style={{ color: 'var(--text-subtle)' }} />
-                </div>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.5 }}>
-                  Select an eligible stage from the progression timeline on the left to start your gasless claim or upgrade transaction.
-                </p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                
-                {/* Console Target Credential Header */}
-                <div style={{ 
-                  background: 'rgba(0,0,0,0.15)', 
-                  border: `1px solid ${claimingTier.color}20`,
-                  borderRadius: 'var(--radius-lg)', 
-                  padding: '14px 16px',
+              {/* Icon */}
+              <div
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '12px',
+                  background: `${color}15`,
+                  border: `1px solid ${color}30`,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '12px'
-                }}>
-                  <div style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '50%',
-                    background: `${claimingTier.color}15`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    border: `1px solid ${claimingTier.color}`
-                  }}>
-                    {React.createElement(claimingTier.icon, { size: 16, style: { color: claimingTier.color } })}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)', textTransform: 'uppercase', fontWeight: 600 }}>Claiming Destination</div>
-                    <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#fff' }}>{claimingTier.name}</div>
-                  </div>
-                </div>
-
-                {ugfStep === '' && (
-                  <div>
-                    <div className="info-note" style={{ marginBottom: '16px' }}>
-                      {claimingTier.level === 0 && !onchainEligible ? (
-                        <>
-                          <strong>Simulation Mode:</strong> Since your wallet is not whitelisted on-chain, we are running in simulated gasless claim mode. Whitelist your wallet using Owner helper tools to run the real UGF flow.
-                        </>
-                      ) : (
-                        <>
-                          <strong>Gasless Abstraction:</strong> The Universal Gas Framework pays the required network gas fee on Base Sepolia. The interaction costs 0.15 Mock USD settled directly from your event credit account.
-                        </>
-                      )}
-                    </div>
-                    {ugfError && (
-                      <div className="error-note" style={{ 
-                        background: 'rgba(239, 68, 68, 0.08)',
-                        border: '1px solid rgba(239, 68, 68, 0.25)',
-                        color: '#ff8a8a',
-                        padding: '12px',
-                        borderRadius: 'var(--radius-md)',
-                        fontSize: '0.85rem',
-                        lineHeight: 1.4,
-                        marginBottom: '16px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '6px'
-                      }}>
-                        <span style={{ fontWeight: 700 }}>Transaction Failed:</span>
-                        <span>{ugfError}</span>
-                      </div>
-                    )}
-                    <button 
-                      onClick={triggerUgfClaim} 
-                      className="btn btn-full btn-primary animate-pop-in"
-                      style={{ background: claimingTier.color, color: '#000', fontWeight: 700 }}
-                    >
-                      Execute Gasless Transaction
-                    </button>
-                  </div>
-                )}
-
-                {/* Live UGF Steps List */}
-                {ugfStep !== '' && ugfStep !== 'success' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {UGF_STEPS.map((step) => {
-                      const isActive = ugfStep === step.key;
-                      
-                      // Calculate step status
-                      let isDone = false;
-                      const activeIndex = UGF_STEPS.findIndex(s => s.key === ugfStep);
-                      const stepIndex = UGF_STEPS.findIndex(s => s.key === step.key);
-                      if (activeIndex > stepIndex) isDone = true;
-
-                      return (
-                        <div 
-                          key={step.key} 
-                          style={{ 
-                            display: 'flex', 
-                            gap: '12px', 
-                            padding: '10px 12px',
-                            background: isActive ? 'rgba(255,255,255,0.03)' : 'transparent',
-                            borderRadius: 'var(--radius-md)',
-                            border: isActive ? '1px solid rgba(255,255,255,0.05)' : '1px solid transparent',
-                            opacity: isDone || isActive ? 1 : 0.45,
-                            transition: 'all 0.3s ease'
-                          }}
-                        >
-                          {/* Step Icon */}
-                          <div style={{ flexShrink: 0, marginTop: '2px' }}>
-                            {isDone ? (
-                              <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(34,197,94,0.2)', border: '1px solid var(--success)', display: 'flex', alignItems: 'center', justifySelf: 'center', justifyContent: 'center' }}>
-                                <CheckCircle2 size={12} style={{ color: 'var(--success)' }} />
-                              </div>
-                            ) : isActive ? (
-                              <div className="spinner" style={{ width: '20px', height: '20px', borderTopColor: claimingTier.color }}></div>
-                            ) : (
-                              <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 'bold' }}>
-                                {step.number}
-                              </div>
-                            )}
-                          </div>
-                          
-                          <div>
-                            <div style={{ fontSize: '0.9rem', fontWeight: 650, color: isActive ? claimingTier.color : '#fff' }}>
-                              {step.title}
-                            </div>
-                            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.3 }}>
-                              {step.desc}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Successful Claim Console Screen */}
-                {ugfStep === 'success' && (
-                  <div className="animate-pop-in" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--success)' }}>
-                      <CheckCircle2 size={28} />
-                      <h4 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Mint Finalized Gaslessly!</h4>
-                    </div>
-
-                    <div style={{ 
-                      background: 'rgba(0,0,0,0.2)', 
-                      padding: '14px', 
-                      borderRadius: 'var(--radius-md)', 
-                      border: '1px solid rgba(255,255,255,0.05)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px',
-                      fontSize: '0.85rem'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--text-subtle)' }}>Credential Tier:</span>
-                        <span style={{ fontWeight: 600, color: '#fff' }}>{txDetails.tier}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--text-subtle)' }}>NFT Token ID:</span>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: claimingTier.color }}>#{txDetails.tokenId}</span>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '6px', marginTop: '4px' }}>
-                        <span style={{ color: 'var(--text-subtle)' }}>Base Sepolia Transaction Hash:</span>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-muted)', overflowWrap: 'anywhere' }}>
-                          {txDetails.txHash}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <a 
-                        href={`https://sepolia.basescan.org/tx/${txDetails.txHash}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="btn btn-secondary" 
-                        style={{ flex: 1, height: '36px', fontSize: '0.8rem', justifyContent: 'center' }}
-                      >
-                        Basescan <ExternalLink size={12} />
-                      </a>
-                      <button 
-                        onClick={() => {
-                          navigator.clipboard.writeText(txDetails.metadataUri);
-                          alert('Metadata URI copied to clipboard!');
-                        }} 
-                        className="btn btn-primary" 
-                        style={{ flex: 1, height: '36px', fontSize: '0.8rem', justifyContent: 'center', background: claimingTier.color, color: '#000' }}
-                      >
-                        Share Pass <Share2 size={12} />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Demo operator controls for hackathon judges */}
-          <div className="glass-panel" style={{ padding: '24px', border: '1px dashed rgba(255, 255, 255, 0.15)' }}>
-            <h3 style={{ fontSize: '1.2rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Sliders size={18} style={{ color: 'var(--primary)' }} /> Demo Helper Controls
-            </h3>
-            <p style={{ color: 'var(--text-subtle)', fontSize: '0.8rem', lineHeight: 1.4, marginBottom: '16px' }}>
-              Simulate hackathon stage updates to review the progression logic instantly without swapping tabs.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {/* Onchain Whitelist Control for Smart Contract Owner */}
-              {isConnected && contractOwner && address && address.toLowerCase() === contractOwner.toLowerCase() && (
-                <div style={{ 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  gap: '10px', 
-                  padding: '12px 14px', 
-                  background: onchainEligible ? 'rgba(34, 197, 94, 0.05)' : 'rgba(239, 68, 68, 0.05)', 
-                  borderRadius: 'var(--radius-md)', 
-                  border: onchainEligible ? '1px solid rgba(34, 197, 94, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', color: '#fff' }}>
-                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: onchainEligible ? 'var(--success)' : 'var(--error)' }}></span>
-                        Onchain Whitelist Status
-                      </div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                        {onchainEligible ? 'Whitelisted (Ready for UGF claim)' : 'Not Whitelisted (UGF will fail)'}
-                      </div>
-                    </div>
-                    {!onchainEligible && (
-                      <button 
-                        onClick={handleWhitelistOnchain}
-                        disabled={whitelisting}
-                        className="btn btn-sm btn-primary"
-                        style={{ 
-                          fontSize: '11px', 
-                          padding: '6px 12px', 
-                          height: 'auto',
-                          background: 'var(--primary)',
-                          color: '#000',
-                          fontWeight: 700
-                        }}
-                      >
-                        {whitelisting ? 'Whitelisting...' : 'Whitelist Me'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {isConnected && highestClaimedLevel < 4 && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(255,255,255,0.04)' }}>
-                  <div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>Approve Stage Upgrade</div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>Unlock: {TIERS[highestClaimedLevel + 1]?.name}</div>
-                  </div>
-                  <button 
-                    onClick={() => setSimulateApproval(!simulateApproval)}
-                    className="btn btn-sm"
-                    style={{ 
-                      background: simulateApproval ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255,255,255,0.05)',
-                      border: simulateApproval ? '1px solid var(--success)' : '1px solid rgba(255,255,255,0.1)',
-                      color: simulateApproval ? 'var(--success)' : 'var(--text-muted)',
-                      fontWeight: 600
-                    }}
-                  >
-                    {simulateApproval ? 'Approved' : 'Approve'}
-                  </button>
-                </div>
-              )}
-
-              <button 
-                onClick={handleResetDemo}
-                className="btn btn-sm btn-ghost btn-full"
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  justifyContent: 'center',
+                  marginBottom: '18px',
+                  position: 'relative',
+                }}
               >
-                <RefreshCw size={12} />
-                Reset Demo Progression
+                <Icon size={22} style={{ color }} />
+              </div>
+
+              <h3
+                style={{
+                  fontSize: '1.1rem',
+                  fontWeight: 700,
+                  marginBottom: '8px',
+                  color: '#fff',
+                  fontFamily: 'var(--font-display)',
+                }}
+              >
+                {title}
+              </h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.6 }}>
+                {desc}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Select Active Hackathon Event ── */}
+      <section style={{ maxWidth: '680px', margin: '0 auto 80px' }}>
+
+        {/* Section heading */}
+        <div style={{ marginBottom: '24px' }}>
+          <div className="eyebrow" style={{ display: 'inline-flex', marginBottom: '12px' }}>
+            <Calendar size={13} style={{ color: 'var(--secondary)' }} />
+            <span>ACTIVE HACKATHON</span>
+          </div>
+          <h2
+            style={{
+              fontSize: 'clamp(1.5rem, 3vw, 2rem)',
+              lineHeight: 1.2,
+              marginBottom: '8px',
+            }}
+          >
+            Select Active Hackathon Event
+          </h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.6 }}>
+            Your wallet is checked against the active event registry. Connect your wallet to
+            see the currently assigned hackathon event and your eligibility status.
+          </p>
+        </div>
+
+        <div
+          className="glass-panel"
+          style={{ padding: '28px' }}
+        >
+
+          {/* ── Not connected ── */}
+          {!isConnected && (
+            <div style={{ textAlign: 'center', padding: '24px 0' }}>
+              <div
+                style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '50%',
+                  background: 'rgba(37,99,235,0.1)',
+                  border: '1px solid rgba(37,99,235,0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 16px',
+                }}
+              >
+                <Info size={24} style={{ color: 'var(--primary)' }} />
+              </div>
+              <p
+                style={{
+                  color: 'var(--text-muted)',
+                  fontSize: '0.95rem',
+                  lineHeight: 1.6,
+                  marginBottom: '20px',
+                  maxWidth: '360px',
+                  margin: '0 auto 20px',
+                }}
+              >
+                Connect your wallet to check if you're registered for an active hackathon event.
+              </p>
+              <ConnectWalletButton style={{ margin: '0 auto', display: 'inline-flex' }} />
+            </div>
+          )}
+
+          {/* ── Loading ── */}
+          {isConnected && loadingEvent && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '14px',
+                padding: '16px 0',
+                justifyContent: 'center',
+              }}
+            >
+              <div className="spinner spinner-md" style={{ borderTopColor: 'var(--secondary)' }} />
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>
+                Checking active hackathon event…
+              </span>
+            </div>
+          )}
+
+          {/* ── Error ── */}
+          {isConnected && !loadingEvent && eventError && (
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                textAlign: 'center',
+                padding: '16px 0',
+              }}
+            >
+              <AlertCircle size={32} style={{ color: 'var(--error)', margin: '0 auto' }} />
+              <p style={{ color: '#ff8a8a', fontSize: '0.9rem' }}>{eventError}</p>
+              <button
+                onClick={fetchActiveEvent}
+                className="btn btn-sm btn-ghost"
+                style={{ alignSelf: 'center', gap: '6px' }}
+              >
+                <RefreshCw size={12} /> Retry
               </button>
             </div>
-          </div>
+          )}
+
+          {/* ── Active event found ── */}
+          {isConnected && !loadingEvent && !eventError && eventInfo && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+              {/* Event details */}
+              <div
+                style={{
+                  background: 'rgba(0,0,0,0.2)',
+                  borderRadius: 'var(--radius-lg)',
+                  border: '1px solid rgba(255,255,255,0.05)',
+                  overflow: 'hidden',
+                }}
+              >
+                {[
+                  { label: 'Event Name', value: eventInfo.eventTitle },
+                  {
+                    label: 'Eligibility',
+                    value: eventInfo.isEligible ? (
+                      <span className="chip chip-eligible" style={{ fontSize: '11px' }}>
+                        <span className="chip-dot" /> Eligible
+                      </span>
+                    ) : (
+                      <span className="chip chip-not-eligible" style={{ fontSize: '11px' }}>
+                        <span className="chip-dot" /> Not Eligible
+                      </span>
+                    ),
+                  },
+                  { label: 'Event ID', value: eventInfo.eventId },
+                ].map(({ label, value }) => (
+                  <div
+                    key={label}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '13px 16px',
+                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                    }}
+                  >
+                    <span style={{ color: 'var(--text-subtle)', fontSize: '0.85rem' }}>{label}</span>
+                    <span
+                      style={{
+                        fontWeight: 600,
+                        fontSize: '0.9rem',
+                        color: '#fff',
+                        fontFamily: label === 'Event ID' ? 'var(--font-mono)' : 'inherit',
+                        fontSize: label === 'Event ID' ? '0.78rem' : '0.9rem',
+                        color: label === 'Event Name' ? 'var(--secondary)' : '#fff',
+                      }}
+                    >
+                      {value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Eligibility note */}
+              {eventInfo.isEligible ? (
+                <div className="info-note" style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                  <CheckCircle2 size={16} style={{ color: 'var(--success)', flexShrink: 0, marginTop: '2px' }} />
+                  <span>
+                    Your wallet is eligible for this event. Head to{' '}
+                    <Link to="/claim" style={{ color: '#93c5fd', textDecoration: 'underline' }}>
+                      Claim Pass
+                    </Link>{' '}
+                    to mint your gasless Event Pass, or visit the{' '}
+                    <Link to="/ladder" style={{ color: '#93c5fd', textDecoration: 'underline' }}>
+                      Ladder
+                    </Link>{' '}
+                    to track your full progression.
+                  </span>
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '10px',
+                    padding: '14px 16px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'rgba(239,68,68,0.06)',
+                    border: '1px solid rgba(239,68,68,0.2)',
+                    fontSize: '13px',
+                    color: '#ff8a8a',
+                    lineHeight: 1.6,
+                  }}
+                >
+                  <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <span>
+                    Your wallet is not on the allowlist for this event. Contact the organizer to get
+                    registered.
+                  </span>
+                </div>
+              )}
+
+              {/* CTA row */}
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <Link
+                  to="/ladder"
+                  id="home-go-ladder-btn"
+                  className="btn btn-primary"
+                  style={{ flex: 1, minWidth: '140px', justifyContent: 'center', gap: '6px' }}
+                >
+                  <Zap size={15} /> View Ladder
+                </Link>
+                <Link
+                  to="/claim"
+                  id="home-go-claim-btn"
+                  className="btn btn-ghost"
+                  style={{ flex: 1, minWidth: '140px', justifyContent: 'center', gap: '6px' }}
+                >
+                  <Tag size={15} /> Claim Pass
+                </Link>
+                <button
+                  onClick={fetchActiveEvent}
+                  className="btn btn-ghost"
+                  style={{ height: '40px', padding: '0 14px', gap: '6px' }}
+                  title="Refresh event status"
+                >
+                  <RefreshCw size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── No event found (empty state) ── */}
+          {isConnected && !loadingEvent && !eventError && !eventInfo && (
+            <div style={{ textAlign: 'center', padding: '28px 0' }}>
+              <div
+                style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px dashed rgba(255,255,255,0.12)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 18px',
+                }}
+              >
+                <Calendar size={26} style={{ color: 'var(--text-subtle)' }} />
+              </div>
+              <h3
+                style={{
+                  fontSize: '1.1rem',
+                  fontWeight: 700,
+                  color: '#fff',
+                  marginBottom: '8px',
+                  fontFamily: 'var(--font-display)',
+                }}
+              >
+                No Active Event Found
+              </h3>
+              <p
+                style={{
+                  color: 'var(--text-muted)',
+                  fontSize: '0.9rem',
+                  lineHeight: 1.6,
+                  maxWidth: '380px',
+                  margin: '0 auto 20px',
+                }}
+              >
+                Your wallet isn't registered to any active hackathon event right now. Check
+                back later or contact the organizer to get added to an event.
+              </p>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button
+                  onClick={fetchActiveEvent}
+                  className="btn btn-sm btn-ghost"
+                  style={{ gap: '6px' }}
+                >
+                  <RefreshCw size={13} /> Refresh
+                </button>
+                <Link
+                  to="/organizer/login"
+                  id="home-organizer-link"
+                  className="btn btn-sm btn-ghost"
+                >
+                  Organizer Portal
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      </section>
     </div>
   );
-
-  // Focus and select claiming tier
-  function startClaimFlow(tier) {
-    setClaimingTier(tier);
-    setUgfStep('');
-    setUgfError('');
-  }
 }
-

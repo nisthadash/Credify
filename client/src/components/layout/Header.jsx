@@ -1,13 +1,14 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAccount } from 'wagmi';
-import { ShieldCheck, Home, Award, Wallet, Search, Shield } from 'lucide-react';
+import { ShieldCheck, Home, Award, Wallet, Search, Shield, BarChart2 } from 'lucide-react';
 import ConnectWalletButton from '../wallet/ConnectWalletButton.jsx';
 import NetworkBadge from '../wallet/NetworkBadge.jsx';
 import logo from '../../assets/logo.png';
 
 const NAV = [
   { label: 'Home',           to: '/home',              icon: Home },
+  { label: 'Ladder',         to: '/ladder',            icon: BarChart2 },
   { label: 'Claim Pass',     to: '/claim',             icon: Award },
   { label: 'My Credentials', to: '/my-credentials',    icon: Wallet },
   { label: 'Verify',         to: '/verify',            icon: Search },

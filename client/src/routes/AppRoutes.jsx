@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from '../pages/LandingPage.jsx';
 import Home from '../pages/Home.jsx';
+import LadderPage from '../pages/LadderPage.jsx';
 import ClaimPage from '../pages/ClaimPage.jsx';
 import SuccessPage from '../pages/SuccessPage.jsx';
 import MyCredentialsPage from '../pages/MyCredentialsPage.jsx';
@@ -14,6 +15,7 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/home" element={<Home />} />
+      <Route path="/ladder" element={<LadderPage />} />
       <Route path="/claim" element={<ClaimPage />} />
       <Route path="/success" element={<SuccessPage />} />
       <Route path="/my-credentials" element={<MyCredentialsPage />} />
