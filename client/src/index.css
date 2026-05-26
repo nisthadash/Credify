@@ -359,18 +359,19 @@ h1, h2, h3, h4, h5, h6 {
 /* ── Label text ── */
 .get-started-btn-text {
   position: relative;
-  z-index: 3;
+  z-index: 1;
   /* Offset right to sit clear of the resting icon pill */
   transform: translateX(16px);
   color: #0a0a0f;
-  transition: color 0.28s ease 0.04s,
+  opacity: 1;
+  transition: opacity 0.3s ease,
               transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Text turns white and nudges left to balance the centered arrow */
+/* Text hides under the expanding blue pill on hover */
 .get-started-btn:hover .get-started-btn-text {
-  color: #ffffff;
-  transform: translateX(-24px);
+  opacity: 0;
+  transform: translateX(-32px);
 }
 
 /* ── Click-exit animation ── */
@@ -1480,6 +1481,7 @@ a, button, input, select, textarea,
   }
   .get-started-btn:hover .get-started-btn-text {
     color: #0a0a0f !important;
+    opacity: 1 !important;
     transform: translateX(16px) !important;
   }
   .new-here-btn:hover {
