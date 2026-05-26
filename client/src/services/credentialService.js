@@ -16,10 +16,18 @@ export async function checkEligibility(address, eventId = null) {
     const endpoint = eventId ? `/eligible/${address}/${eventId}` : `/eligible/${address}`;
     const data = await apiFetch(endpoint);
     if (data.success) return data.data;
-    throw new Error(data.message);
-  } catch {
-    // Demo mode fallback
-    return { isEligible: true, eventTitle: 'Credify Base Sepolia Workshop (Demo Mode)' };
+    // Server returned an error response — wallet is not eligible
+    return { isEligible: false, eventTitle: '', eventId: eventId || '' };
+  } catch (err) {
+    // Only fall back to "eligible" if the server is completely unreachable (network error)
+    const isNetworkError = !err?.status && (err?.message?.includes('fetch') || err?.message?.includes('network') || err?.message?.includes('Failed to fetch'));
+    if (isNetworkError) {
+      console.warn('[credentialService] Server unreachable — running in offline demo mode');
+      return { isEligible: true, eventTitle: 'Credify Base Sepolia Workshop (Demo Mode)', eventId: eventId || '' };
+    }
+    // For any other error, return not eligible
+    console.error('[credentialService] checkEligibility error:', err?.message);
+    return { isEligible: false, eventTitle: '', eventId: eventId || '' };
   }
 }
 

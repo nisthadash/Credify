@@ -28,6 +28,7 @@ export default function ConnectWalletButton({ style, className, ...props }) {
   const [showConnectModal, setShowConnectModal] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [providerReady, setProviderReady] = useState(false);
 
   const isCorrectNetwork = isConnected && chainId === baseSepolia.id;
 
@@ -37,6 +38,27 @@ export default function ConnectWalletButton({ style, className, ...props }) {
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const detectProvider = () => {
+      const ethereum = window.ethereum;
+      const hasProvider = Boolean(
+        ethereum?.isMetaMask ||
+        ethereum?.providers?.some(provider => provider.isMetaMask) ||
+        ethereum
+      );
+      setProviderReady(hasProvider);
+    };
+
+    detectProvider();
+    const timers = [250, 750, 1500].map(delay => setTimeout(detectProvider, delay));
+    window.addEventListener('ethereum#initialized', detectProvider, { once: true });
+
+    return () => {
+      timers.forEach(clearTimeout);
+      window.removeEventListener('ethereum#initialized', detectProvider);
+    };
   }, []);
 
   // Lock body scroll when any overlay is open on mobile
@@ -63,19 +85,44 @@ export default function ConnectWalletButton({ style, className, ...props }) {
   };
 
   const handleConnectInjected = () => {
-    if (typeof window !== 'undefined' && window.ethereum) {
-      const injConnector = connectors.find(c => c.id === 'injected') || connectors[0];
-      if (injConnector) {
-        connect({ connector: injConnector });
-        setShowConnectModal(false);
-      }
-    } else {
-      if (isMobile) {
-        handleOpenMetaMaskDeepLink();
-      } else {
-        window.open('https://metamask.io/download/', '_blank');
-      }
+    if (isMobile && !providerReady) {
+      handleOpenMetaMaskDeepLink();
+      return;
     }
+
+    // Priority: named 'metaMask' > named 'injected' > name includes 'metamask' > first available
+    const injConnector =
+      connectors.find(c => c.id === 'metaMask') ||
+      connectors.find(c => c.id === 'injected') ||
+      connectors.find(c => c.name?.toLowerCase().includes('metamask')) ||
+      connectors.find(c => c.type === 'injected') ||
+      connectors[0];
+
+    if (injConnector) {
+      connect(
+        { connector: injConnector },
+        {
+          onSuccess: () => setShowConnectModal(false),
+          onError: (err) => {
+            console.error('Wallet connect failed:', err);
+            if (err?.name === 'ConnectorAlreadyConnectedError') {
+              setShowConnectModal(false);
+              return;
+            }
+            if (err?.message?.includes('rejected') || err?.code === 4001) {
+              alert('Connection rejected. Please approve the connection in MetaMask.');
+            } else if (!window.ethereum) {
+              alert('No wallet extension detected. Please install MetaMask from metamask.io, then refresh the page.');
+            } else {
+              alert('Failed to connect: ' + (err?.message || 'Unknown error') + '\n\nTry refreshing the page or disabling conflicting extensions.');
+            }
+          }
+        }
+      );
+      return;
+    }
+
+    alert('No browser wallet connector is available. Please install MetaMask from metamask.io and refresh the page.');
   };
 
   return (
@@ -463,7 +510,12 @@ export default function ConnectWalletButton({ style, className, ...props }) {
                       MetaMask <span style={{ fontSize: '9px', background: 'rgba(249,115,22,0.15)', color: '#fca5a5', padding: '2px 6px', borderRadius: '6px', fontWeight: 700 }}>REQUIRED</span>
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '2px' }}>
-                      {isMobile ? 'Deep-link to MetaMask app' : 'Connect via browser extension'}
+                      {isMobile
+                        ? 'Open MetaMask app'
+                        : providerReady
+                          ? 'Extension detected'
+                          : 'Use installed browser extension'
+                      }
                     </div>
                   </div>
                 </div>

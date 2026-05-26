@@ -48,6 +48,7 @@ export default function Home() {
   const [onchainClaimed, setOnchainClaimed] = useState(false);
   const [checkingOnchain, setCheckingOnchain] = useState(false);
   const [whitelisting, setWhitelisting] = useState(false);
+  const [devWhitelistAddress, setDevWhitelistAddress] = useState('');
 
   // Fetch all events on mount
   useEffect(() => {
@@ -56,6 +57,10 @@ export default function Home() {
       try {
         const allEvents = await getEvents();
         setEvents(allEvents || []);
+        // Auto-select first event immediately so eligibility check uses the right eventId
+        if (allEvents && allEvents.length > 0) {
+          setSelectedEventId(prev => prev || allEvents[0]._id);
+        }
       } catch (err) {
         console.error('Failed loading events:', err);
       } finally {
@@ -64,14 +69,13 @@ export default function Home() {
     })();
   }, []);
 
-  // Sync selected event ID with the eligibility check result or default to first event in list
+  // If user is connected and eligibility hook returned an eventId, use it (handles the case
+  // where the latest-event fallback resolves before events list loads)
   useEffect(() => {
     if (isConnected && eventId && !selectedEventId) {
       setSelectedEventId(eventId);
-    } else if (!isConnected && events.length > 0 && !selectedEventId) {
-      setSelectedEventId(events[0]._id);
     }
-  }, [eventId, selectedEventId, isConnected, events]);
+  }, [eventId, selectedEventId, isConnected]);
 
   const checkOnchainStatus = async () => {
     if (!address || !selectedEventId) return;
@@ -112,7 +116,42 @@ export default function Home() {
     }
   };
 
+  const handleWhitelistAddressOnchain = async (addressToWhitelist) => {
+    if (!signer || !addressToWhitelist) return;
+    const cleanAddress = addressToWhitelist.trim();
+    if (!/^0x[a-fA-F0-9]{40}$/.test(cleanAddress)) {
+      alert('Invalid Ethereum address format.');
+      return;
+    }
+    setWhitelisting(true);
+    try {
+      const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
+      console.log('[Onchain Whitelist DevTool] Sending addEligible transaction for:', cleanAddress);
+      const tx = await contract.addEligible(cleanAddress);
+      console.log('[Onchain Whitelist DevTool] Transaction sent:', tx.hash);
+      
+      await tx.wait();
+      console.log('[Onchain Whitelist DevTool] Transaction confirmed');
+      
+      if (address && cleanAddress.toLowerCase() === address.toLowerCase()) {
+        await checkOnchainStatus();
+      }
+      alert(`Wallet ${cleanAddress.substring(0, 6)}... whitelisted on-chain successfully!`);
+      setDevWhitelistAddress('');
+    } catch (err) {
+      console.error('Error whitelisting address on-chain:', err);
+      alert('Failed to whitelist on-chain: ' + (err.reason || err.message || err));
+    } finally {
+      setWhitelisting(false);
+    }
+  };
+
   const handleWhitelistOnchain = async () => {
+    if (!address) return;
+    await handleWhitelistAddressOnchain(address);
+  };
+
+  const handleWhitelistOnchain_OLD = async () => {
     if (!signer || !address || !selectedEventId) return;
     setWhitelisting(true);
     try {
@@ -242,8 +281,9 @@ export default function Home() {
     setUgfError('');
     
     if (claimingTier.level === 0) {
-      if (!onchainEligible) {
-        setUgfError('Your wallet is not whitelisted on-chain. Please whitelist it using the helper tools below.');
+      // Primary gate: DB eligibility check (set by organizer whitelist)
+      if (!isEligible) {
+        setUgfError('Your wallet is not whitelisted for this event. Please ask the organizer to whitelist your address on the Organizer Dashboard.');
         return;
       }
       try {
@@ -742,17 +782,17 @@ export default function Home() {
                     </div>
                     
                     {!onchainEligible && claimingTier.level === 0 && (
-                      <div className="error-note" style={{ 
-                        background: 'rgba(239, 68, 68, 0.08)',
-                        border: '1px solid rgba(239, 68, 68, 0.25)',
-                        color: '#ff8a8a',
+                      <div style={{ 
+                        background: 'rgba(245, 158, 11, 0.08)',
+                        border: '1px solid rgba(245, 158, 11, 0.25)',
+                        color: '#fcd34d',
                         padding: '12px',
                         borderRadius: 'var(--radius-md)',
                         fontSize: '0.85rem',
                         lineHeight: 1.4,
                         marginBottom: '16px'
                       }}>
-                        <strong>Warning:</strong> Your wallet is not whitelisted on-chain yet. You can use the Owner Helper tools below to whitelist your wallet on-chain before executing this transaction.
+                        <strong>ℹ️ Note:</strong> On-chain whitelist status is pending. If the organizer has approved your wallet in the dashboard, you can still proceed — the relayer will sync your whitelist status automatically.
                       </div>
                     )}
 
@@ -791,18 +831,18 @@ export default function Home() {
                     )}
                     <button 
                       onClick={triggerUgfClaim} 
-                      disabled={!onchainEligible || claimingTier.level > 0}
+                      disabled={!isEligible || claimingTier.level > 0}
                       className="btn btn-full btn-primary animate-pop-in"
                       style={{ 
                         background: claimingTier.color, 
                         color: '#000', 
                         fontWeight: 700,
-                        opacity: (!onchainEligible || claimingTier.level > 0) ? 0.55 : 1,
-                        cursor: (!onchainEligible || claimingTier.level > 0) ? 'not-allowed' : 'pointer'
+                        opacity: (!isEligible || claimingTier.level > 0) ? 0.55 : 1,
+                        cursor: (!isEligible || claimingTier.level > 0) ? 'not-allowed' : 'pointer'
                       }}
                     >
-                      {!onchainEligible && claimingTier.level === 0
-                        ? 'Not Whitelisted On-Chain' 
+                      {!isEligible && claimingTier.level === 0
+                        ? 'Not Whitelisted — Contact Organizer' 
                         : claimingTier.level > 0 
                           ? 'Organizer Upgrade Required' 
                           : 'Execute Gasless Transaction'
@@ -934,7 +974,7 @@ export default function Home() {
                 <Sliders size={18} style={{ color: 'var(--primary)' }} /> Developer Tools
               </h3>
               <p style={{ color: 'var(--text-subtle)', fontSize: '0.8rem', lineHeight: 1.4, marginBottom: '16px' }}>
-                Manage on-chain whitelist status for your connected owner wallet.
+                On-chain whitelist status for this event. <strong style={{ color: 'var(--text-muted)' }}>Only the contract owner wallet</strong> can whitelist on-chain. If you are the organizer, connect the owner wallet and click "Whitelist Me".
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>

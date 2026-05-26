@@ -66,6 +66,11 @@ export default function OrganizerDashboardPage() {
   const [checkingOwner, setCheckingOwner] = useState(false);
   const [upgradingWallet, setUpgradingWallet] = useState(null); // wallet address being upgraded
   const [isRevokingWallet, setIsRevokingWallet] = useState(null);
+  
+  // On-chain sync states
+  const [onchainEligibleMap, setOnchainEligibleMap] = useState({});
+  const [checkingOnchainMap, setCheckingOnchainMap] = useState(false);
+  const [syncingWallet, setSyncingWallet] = useState(null);
 
   const canWriteOnchain = Boolean(
     signer &&
@@ -73,6 +78,100 @@ export default function OrganizerDashboardPage() {
     contractOwner &&
     connectedAddress.toLowerCase() === contractOwner.toLowerCase()
   );
+
+  const checkOnchainEligibility = async (participantsList) => {
+    if (!participantsList || participantsList.length === 0) return;
+    setCheckingOnchainMap(true);
+    try {
+      const publicClient = createPublicClient({
+        chain: baseSepolia,
+        transport: http('https://sepolia.base.org')
+      });
+      
+      const map = {};
+      await Promise.all(
+        participantsList.map(async (p) => {
+          try {
+            const isEligible = await publicClient.readContract({
+              address: CONTRACT_ADDRESS,
+              abi: ABI,
+              functionName: 'isEligible',
+              args: [p.walletAddress]
+            });
+            map[p.walletAddress.toLowerCase()] = isEligible;
+          } catch (err) {
+            console.error(`Failed to check onchain eligibility for ${p.walletAddress}:`, err);
+            map[p.walletAddress.toLowerCase()] = false;
+          }
+        })
+      );
+      setOnchainEligibleMap(prev => ({ ...prev, ...map }));
+    } catch (err) {
+      console.error('Error checking onchain eligibility map:', err);
+    } finally {
+      setCheckingOnchainMap(false);
+    }
+  };
+
+  const handleSyncSingleOnchain = async (walletAddress) => {
+    if (!canWriteOnchain) {
+      showToast('Connect the contract owner wallet in Web3 Console first.');
+      return;
+    }
+    
+    setSyncingWallet(walletAddress);
+    try {
+      const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
+      showToast(`Please confirm the whitelist transaction for ${walletAddress.substring(0, 6)}... in your wallet.`);
+      const tx = await contract.addEligible(walletAddress);
+      showToast('Transaction sent! Waiting for block confirmation...');
+      await tx.wait();
+      showToast(`Successfully whitelisted ${walletAddress.substring(0, 6)}... on-chain!`);
+      setOnchainEligibleMap(prev => ({
+        ...prev,
+        [walletAddress.toLowerCase()]: true
+      }));
+    } catch (err) {
+      console.error('On-chain whitelist sync failed:', err);
+      showToast('Failed to whitelist: ' + (err.reason || err.message || err));
+    } finally {
+      setSyncingWallet(null);
+    }
+  };
+
+  const unsyncedParticipants = participants.filter(p => p.tokenId === null && !onchainEligibleMap[p.walletAddress.toLowerCase()]);
+
+  const handleSyncAllOnchain = async () => {
+    if (!canWriteOnchain) {
+      showToast('Connect the contract owner wallet in Web3 Console first.');
+      return;
+    }
+    if (unsyncedParticipants.length === 0) return;
+
+    const walletsToSync = unsyncedParticipants.map(p => p.walletAddress);
+    showToast(`Syncing ${walletsToSync.length} wallets on-chain...`);
+    try {
+      const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
+      let tx;
+      if (walletsToSync.length === 1) {
+        tx = await contract.addEligible(walletsToSync[0]);
+      } else {
+        tx = await contract.addEligibleBulk(walletsToSync);
+      }
+      showToast('Bulk transaction sent! Waiting for block confirmation...');
+      await tx.wait();
+      showToast(`Successfully whitelisted ${walletsToSync.length} wallets on-chain!`);
+      
+      const newMapUpdates = {};
+      walletsToSync.forEach(w => {
+        newMapUpdates[w.toLowerCase()] = true;
+      });
+      setOnchainEligibleMap(prev => ({ ...prev, ...newMapUpdates }));
+    } catch (err) {
+      console.error('Bulk sync failed:', err);
+      showToast('Bulk sync failed: ' + (err.reason || err.message || err));
+    }
+  };
 
   const syncWhitelistOnchain = async (wallets) => {
     if (!canWriteOnchain) {
@@ -166,7 +265,9 @@ export default function OrganizerDashboardPage() {
     try {
       const data = await apiFetch(`/eligible/event/${eventId}`);
       if (data && data.success) {
-        setParticipants(data.data || []);
+        const list = data.data || [];
+        setParticipants(list);
+        checkOnchainEligibility(list);
       }
     } catch (err) {
       console.error('Error fetching participants:', err);
@@ -794,97 +895,152 @@ export default function OrganizerDashboardPage() {
                   <p style={{ fontSize: '14px' }}>No participants whitelisted yet.</p>
                 </div>
               ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        {['Wallet Address', 'Token ID', 'Current Tier', 'Status', 'Actions'].map(h => (
-                          <th key={h}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {participants.map((p, i) => {
-                        const tierLvl = getTierLevel(p.tier);
-                        const isUpgrading = upgradingWallet === p.walletAddress;
-                        return (
-                          <tr key={i}>
-                            <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
-                              {p.walletAddress}
-                            </td>
-                            <td style={{ fontFamily: 'var(--font-mono)' }}>
-                              {p.tokenId !== null ? `#${p.tokenId}` : '—'}
-                            </td>
-                            <td>
-                              <span style={{ 
-                                color: tierLvl >= 0 ? TIER_COLORS[tierLvl] : 'var(--text-muted)', 
-                                fontWeight: 700, 
-                                fontSize: '12px', 
-                                fontFamily: 'var(--font-display)', 
-                                textTransform: 'uppercase', 
-                                letterSpacing: '0.05em' 
-                              }}>
-                                {tierLvl >= 0 ? TIER_NAMES[tierLvl] : 'None'}
-                              </span>
-                            </td>
-                            <td>
-                              <span className={`chip ${p.tokenId !== null ? 'chip-verified' : 'chip-pending'}`} style={{ fontSize: '10px' }}>
-                                <span className="chip-dot"></span>
-                                {p.status}
-                              </span>
-                            </td>
-                            <td>
-                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                {p.txHash && p.txHash !== 'onchain-reconciled' && (
-                                  <a 
-                                    href={`https://sepolia.basescan.org/tx/${p.txHash}`} 
-                                    target="_blank" 
-                                    rel="noreferrer"
-                                    className="btn btn-ghost btn-sm" 
-                                    style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-                                  >
-                                    <ExternalLink size={11} />
-                                  </a>
-                                )}
-                                {p.status === 'revoked' ? (
-                                  <span style={{ fontSize: '11px', color: 'var(--error)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                    <Ban size={11} /> Revoked
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {unsyncedParticipants.length > 0 && (
+                    <div style={{ 
+                      margin: '10px 24px 0', 
+                      padding: '12px 16px', 
+                      background: 'rgba(245,158,11,0.08)', 
+                      border: '1px solid rgba(245,158,11,0.2)', 
+                      borderRadius: '8px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: '12px'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#fcd34d' }}>
+                        <Info size={16} />
+                        <span>There are {unsyncedParticipants.length} whitelisted wallets that are not synced on-chain.</span>
+                      </div>
+                      <button
+                        onClick={handleSyncAllOnchain}
+                        disabled={!canWriteOnchain}
+                        className="btn btn-primary btn-sm"
+                        style={{ background: 'var(--primary)', color: '#000', fontWeight: 700 }}
+                      >
+                        Sync All {unsyncedParticipants.length} Wallets
+                      </button>
+                    </div>
+                  )}
+
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          {['Wallet Address', 'Token ID', 'Current Tier', 'Status', 'Actions'].map(h => (
+                            <th key={h}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {participants.map((p, i) => {
+                          const tierLvl = getTierLevel(p.tier);
+                          const isUpgrading = upgradingWallet === p.walletAddress;
+                          return (
+                            <tr key={i}>
+                              <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
+                                {p.walletAddress}
+                              </td>
+                              <td style={{ fontFamily: 'var(--font-mono)' }}>
+                                {p.tokenId !== null ? `#${p.tokenId}` : '—'}
+                              </td>
+                              <td>
+                                <span style={{ 
+                                  color: tierLvl >= 0 ? TIER_COLORS[tierLvl] : 'var(--text-muted)', 
+                                  fontWeight: 700, 
+                                  fontSize: '12px', 
+                                  fontFamily: 'var(--font-display)', 
+                                  textTransform: 'uppercase', 
+                                  letterSpacing: '0.05em' 
+                                }}>
+                                  {tierLvl >= 0 ? TIER_NAMES[tierLvl] : 'None'}
+                                </span>
+                              </td>
+                              <td>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                  <span className={`chip ${p.tokenId !== null ? 'chip-verified' : 'chip-pending'}`} style={{ fontSize: '10px' }}>
+                                    <span className="chip-dot"></span>
+                                    {p.status}
                                   </span>
-                                ) : p.tokenId !== null ? (
-                                  <>
-                                    {tierLvl < 4 ? (
-                                      <button 
-                                        onClick={() => handleUpgrade(p)} 
-                                        disabled={isUpgrading}
-                                        className="btn btn-secondary btn-sm" 
-                                        style={{ gap: '4px' }}
-                                      >
-                                        {isUpgrading ? 'Upgrading...' : `Upgrade (${TIER_NAMES[tierLvl + 1]})`}
-                                      </button>
+                                  {p.tokenId === null && (
+                                    onchainEligibleMap[p.walletAddress.toLowerCase()] ? (
+                                      <span style={{ fontSize: '9px', color: 'var(--success)', fontWeight: 600 }}>
+                                        ✓ Synced On-Chain
+                                      </span>
                                     ) : (
-                                      <span style={{ fontSize: '11px', color: '#86efac', fontWeight: 600 }}>Max Tier Reached</span>
-                                    )}
-                                    <button 
-                                      onClick={() => handleRevoke(p)} 
-                                      disabled={isRevokingWallet === p.walletAddress}
-                                      className="btn btn-danger btn-sm" 
-                                      style={{ gap: '4px', display: 'inline-flex', alignItems: 'center' }}
+                                      <span style={{ fontSize: '9px', color: 'var(--warning)', fontWeight: 600 }}>
+                                        ⚠ DB Only (Pending Sync)
+                                      </span>
+                                    )
+                                  )}
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                  {p.txHash && p.txHash !== 'onchain-reconciled' && (
+                                    <a 
+                                      href={`https://sepolia.basescan.org/tx/${p.txHash}`} 
+                                      target="_blank" 
+                                      rel="noreferrer"
+                                      className="btn btn-ghost btn-sm" 
+                                      style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                                     >
-                                      {isRevokingWallet === p.walletAddress ? 'Revoking...' : <><XCircle size={11} /> Revoke</>}
-                                    </button>
-                                  </>
-                                ) : (
-                                  <span style={{ fontSize: '11px', color: 'var(--text-subtle)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                    <Info size={11} /> Awaiting Claim
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                                      <ExternalLink size={11} />
+                                    </a>
+                                  )}
+                                  {p.status === 'revoked' ? (
+                                    <span style={{ fontSize: '11px', color: 'var(--error)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                      <Ban size={11} /> Revoked
+                                    </span>
+                                  ) : p.tokenId !== null ? (
+                                    <>
+                                      {tierLvl < 4 ? (
+                                        <button 
+                                          onClick={() => handleUpgrade(p)} 
+                                          disabled={isUpgrading}
+                                          className="btn btn-secondary btn-sm" 
+                                          style={{ gap: '4px' }}
+                                        >
+                                          {isUpgrading ? 'Upgrading...' : `Upgrade (${TIER_NAMES[tierLvl + 1]})`}
+                                        </button>
+                                      ) : (
+                                        <span style={{ fontSize: '11px', color: '#86efac', fontWeight: 600 }}>Max Tier Reached</span>
+                                      )}
+                                      <button 
+                                        onClick={() => handleRevoke(p)} 
+                                        disabled={isRevokingWallet === p.walletAddress}
+                                        className="btn btn-danger btn-sm" 
+                                        style={{ gap: '4px', display: 'inline-flex', alignItems: 'center' }}
+                                      >
+                                        {isRevokingWallet === p.walletAddress ? 'Revoking...' : <><XCircle size={11} /> Revoke</>}
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <span style={{ fontSize: '11px', color: 'var(--text-subtle)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        <Info size={11} /> Awaiting Claim
+                                      </span>
+                                      {!onchainEligibleMap[p.walletAddress.toLowerCase()] && (
+                                        <button
+                                          onClick={() => handleSyncSingleOnchain(p.walletAddress)}
+                                          disabled={syncingWallet === p.walletAddress || !canWriteOnchain}
+                                          className="btn btn-primary btn-sm"
+                                          style={{ fontSize: '11px', padding: '4px 10px', height: 'auto', background: 'var(--primary)', color: '#000' }}
+                                        >
+                                          {syncingWallet === p.walletAddress ? 'Syncing...' : 'Sync On-Chain'}
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )
             )}

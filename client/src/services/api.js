@@ -1,4 +1,5 @@
-const BACKEND_URL = 'http://localhost:5000/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const BACKEND_URL = `${API_BASE.replace(/\/$/, '')}/api`;
 
 async function apiFetch(endpoint, options = {}) {
   const url = `${BACKEND_URL}${endpoint}`;

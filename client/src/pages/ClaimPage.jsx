@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Calendar, Tag, Ticket, ShieldAlert, ShieldCheck, Compass } from 'lucide-react';
@@ -12,7 +12,7 @@ import { baseSepolia } from 'viem/chains';
 import { Contract } from 'ethers';
 import { useEthersSigner } from '../utils/ethers.js';
 import { CONTRACT_ADDRESS, ABI } from '../config/contract.js';
-import { saveClaim, getCredentialsByWallet } from '../services/credentialService.js';
+import { saveClaim, getCredentialsByWallet, getEvents } from '../services/credentialService.js';
 
 const EVENT = {
   name: 'Credify Base Sepolia Workshop',
@@ -24,7 +24,31 @@ const EVENT = {
 export default function ClaimPage() {
   const { address, isConnected } = useAccount();
   const navigate = useNavigate();
-  const { checked, isEligible, eventTitle, eventId, loading: eligLoading } = useEligibility(address, isConnected);
+
+  // Load events and select the first one (or the one user is whitelisted for)
+  const [events, setEvents] = useState([]);
+  const [selectedEventId, setSelectedEventId] = useState(null);
+  const [loadingEvents, setLoadingEvents] = useState(false);
+
+  // Load events on mount
+  useEffect(() => {
+    (async () => {
+      setLoadingEvents(true);
+      try {
+        const allEvents = await getEvents();
+        setEvents(allEvents || []);
+        if (allEvents && allEvents.length > 0) {
+          setSelectedEventId(allEvents[0]._id);
+        }
+      } catch (err) {
+        console.error('Failed loading events:', err);
+      } finally {
+        setLoadingEvents(false);
+      }
+    })();
+  }, []);
+
+  const { checked, isEligible, eventTitle, eventId, loading: eligLoading } = useEligibility(address, isConnected, selectedEventId);
   const { ugfStep, txDetails, triggerClaim, isRunning } = useUGFClaim();
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -52,14 +76,14 @@ export default function ClaimPage() {
   };
 
   const checkOnchainStatus = async () => {
-    if (!address || !eventId) return;
+    if (!address || !selectedEventId) return;
     setCheckingOnchain(true);
     try {
       const publicClient = createPublicClient({
         chain: baseSepolia,
         transport: http('https://sepolia.base.org')
       });
-      
+
       const ownerAddress = await publicClient.readContract({
         address: CONTRACT_ADDRESS,
         abi: ABI,
@@ -91,18 +115,18 @@ export default function ClaimPage() {
   };
 
   const handleWhitelistOnchain = async () => {
-    if (!signer || !address || !eventId) return;
+    if (!signer || !address || !selectedEventId) return;
     setWhitelisting(true);
     try {
       const contract = new Contract(CONTRACT_ADDRESS, ABI, signer);
-      console.log('[ClaimPage Onchain Whitelist] Sending addEligible transaction for:', address, 'event:', eventId);
+      console.log('[ClaimPage Onchain Whitelist] Sending addEligible transaction for:', address, 'event:', selectedEventId);
       const tx = await contract.addEligible(address);
       console.log('[ClaimPage Onchain Whitelist] Transaction sent:', tx.hash);
-      
+
       // Wait for 1 confirmation
       const receipt = await tx.wait();
       console.log('[ClaimPage Onchain Whitelist] Transaction confirmed:', receipt);
-      
+
       // Refresh status
       await checkOnchainStatus();
       alert('Wallet whitelisted on-chain successfully!');
@@ -114,8 +138,8 @@ export default function ClaimPage() {
     }
   };
 
-  React.useEffect(() => {
-    if (isConnected && address && eventId) {
+  useEffect(() => {
+    if (isConnected && address && selectedEventId) {
       checkOnchainStatus();
       loadCredentials();
     } else {
@@ -124,11 +148,11 @@ export default function ClaimPage() {
       setOnchainClaimed(false);
       setCredentials([]);
     }
-  }, [address, isConnected, eventId]);
+  }, [address, isConnected, selectedEventId]);
 
   const hasClaimedThisEvent = credentials.some(c => {
     const cEventId = typeof c.eventId === 'object' ? c.eventId?._id : c.eventId;
-    return cEventId === eventId;
+    return cEventId === selectedEventId;
   });
 
   const isAlreadyClaimedForEvent = hasClaimedThisEvent || onchainClaimed;
@@ -141,7 +165,7 @@ export default function ClaimPage() {
     // Real UGF flow
     setModalOpen(true);
     try {
-      const result = await triggerClaim(address, eventId);
+      const result = await triggerClaim(address, selectedEventId);
       setTimeout(() => {
         setModalOpen(false);
         navigate(`/success?tokenId=${result.tokenId}&txHash=${result.txHash}&event=${encodeURIComponent(eventTitle || EVENT.name)}`);
@@ -179,9 +203,9 @@ export default function ClaimPage() {
                 Event Details
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-                <Row label="Event"  value={eventTitle || EVENT.name} />
-                <Row label="Date"   value={EVENT.date} />
-                <Row label="Tier"   value={<span style={{ color: '#93c5fd', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}><Ticket size={13} /> {EVENT.tier} (Tier 0)</span>} />
+                <Row label="Event" value={eventTitle || EVENT.name} />
+                <Row label="Date" value={EVENT.date} />
+                <Row label="Tier" value={<span style={{ color: '#93c5fd', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}><Ticket size={13} /> {EVENT.tier} (Tier 0)</span>} />
                 {isConnected && checked && (
                   <Row label="Eligibility" value={
                     isEligible
@@ -220,7 +244,7 @@ export default function ClaimPage() {
                   <p style={{ color: 'var(--text-muted)', fontSize: '13px', lineHeight: 1.6, marginBottom: '20px' }}>
                     You have already claimed this credential pass on Base Sepolia.
                   </p>
-                  <button 
+                  <button
                     onClick={() => navigate('/my-credentials')}
                     className="btn btn-primary btn-full"
                     style={{ height: '48px', fontSize: '15px' }}
@@ -243,10 +267,10 @@ export default function ClaimPage() {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   {isEligible && !onchainEligible && (
-                    <div style={{ 
-                      padding: '12px 14px', 
-                      background: 'rgba(245, 158, 11, 0.08)', 
-                      borderRadius: 'var(--radius-md)', 
+                    <div style={{
+                      padding: '12px 14px',
+                      background: 'rgba(245, 158, 11, 0.08)',
+                      borderRadius: 'var(--radius-md)',
                       border: '1px solid rgba(245, 158, 11, 0.25)',
                       display: 'flex',
                       flexDirection: 'column',
@@ -263,10 +287,10 @@ export default function ClaimPage() {
 
                   {/* Onchain Whitelist Warning for Smart Contract Owner */}
                   {contractOwner && address && address.toLowerCase() === contractOwner.toLowerCase() && !onchainEligible && (
-                    <div style={{ 
-                      padding: '12px 14px', 
-                      background: 'rgba(239, 68, 68, 0.07)', 
-                      borderRadius: 'var(--radius-md)', 
+                    <div style={{
+                      padding: '12px 14px',
+                      background: 'rgba(239, 68, 68, 0.07)',
+                      borderRadius: 'var(--radius-md)',
                       border: '1px solid rgba(239, 68, 68, 0.25)',
                       display: 'flex',
                       flexDirection: 'column',
@@ -278,13 +302,13 @@ export default function ClaimPage() {
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', lineHeight: 1.4 }}>
                         Your wallet is the smart contract owner but is not whitelisted on-chain yet. The UGF transaction dry-run simulation will revert.
                       </p>
-                      <button 
+                      <button
                         onClick={handleWhitelistOnchain}
                         disabled={whitelisting}
                         className="btn btn-sm btn-primary"
-                        style={{ 
-                          fontSize: '11px', 
-                          padding: '6px 12px', 
+                        style={{
+                          fontSize: '11px',
+                          padding: '6px 12px',
                           height: 'auto',
                           background: 'var(--primary)',
                           color: '#000',
@@ -305,9 +329,9 @@ export default function ClaimPage() {
                     onClick={handleClaim}
                     disabled={isRunning || !onchainEligible}
                     className="btn btn-primary btn-full"
-                    style={{ 
-                      height: '48px', 
-                      fontSize: '15px', 
+                    style={{
+                      height: '48px',
+                      fontSize: '15px',
                       gap: '10px',
                       opacity: (!onchainEligible && !isRunning) ? 0.55 : 1,
                       cursor: (!onchainEligible && !isRunning) ? 'not-allowed' : 'pointer'
