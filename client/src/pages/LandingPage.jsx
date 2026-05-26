@@ -14,16 +14,32 @@ export default function LandingPage() {
   const navigate = useNavigate();
   const [showGuide, setShowGuide] = useState(false);
   const [scrollY, setScrollY] = useState(0);
+  const [organizersVisible, setOrganizersVisible] = useState(false);
+  const organizersRef = useRef(null);
 
   useEffect(() => {
     const handleScroll = () => {
       setScrollY(window.scrollY);
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
-  const organizersVisible = scrollY > 140;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setOrganizersVisible(true);
+        }
+      },
+      { threshold: 0.08 }
+    );
+    if (organizersRef.current) {
+      observer.observe(organizersRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      observer.disconnect();
+    };
+  }, []);
 
   return (
     <div style={{
@@ -185,25 +201,27 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* ── Scroll Transition Wrapper for Separator + Organizers ── */}
-      <div
-        style={{
+      {/* Soft separator */}
+      <div style={{
+        position: 'relative', zIndex: 3,
+        maxWidth: '560px', margin: '0 auto',
+        height: '1px',
+        background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.06) 30%, rgba(255,255,255,0.06) 70%, transparent)',
+        marginBottom: '80px',
+      }} />
+
+      {/* ── For Organizers Section ── */}
+      <div 
+        ref={organizersRef}
+        style={{ 
+          position: 'relative', 
+          zIndex: 3, 
+          padding: '0 20px 100px',
           opacity: organizersVisible ? 1 : 0,
-          transform: organizersVisible ? 'translateY(0)' : 'translateY(80px)',
-          transition: 'opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1), transform 0.9s cubic-bezier(0.16, 1, 0.3, 1)',
+          transform: organizersVisible ? 'translateY(0)' : 'translateY(40px)',
+          transition: 'opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1)',
         }}
       >
-        {/* Soft separator */}
-        <div style={{
-          position: 'relative', zIndex: 3,
-          maxWidth: '560px', margin: '0 auto',
-          height: '1px',
-          background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.06) 30%, rgba(255,255,255,0.06) 70%, transparent)',
-          marginBottom: '80px',
-        }} />
-
-        {/* ── For Organizers Section ── */}
-        <div style={{ position: 'relative', zIndex: 3, padding: '0 20px 100px' }}>
         <div style={{ maxWidth: '900px', margin: '0 auto' }}>
 
           {/* Section header */}
@@ -306,7 +324,6 @@ export default function LandingPage() {
             </Link>
           </div>
         </div>
-      </div>
       </div>
 
       {/* Keyframe animations */}
