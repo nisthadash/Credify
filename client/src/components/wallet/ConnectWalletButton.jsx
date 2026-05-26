@@ -90,6 +90,11 @@ export default function ConnectWalletButton({ style, className, ...props }) {
       return;
     }
 
+    if (!isMobile && !providerReady) {
+      window.open('https://metamask.io/download', '_blank', 'noopener,noreferrer');
+      return;
+    }
+
     // Priority: named 'metaMask' > named 'injected' > name includes 'metamask' > first available
     const injConnector =
       connectors.find(c => c.id === 'metaMask') ||
@@ -112,7 +117,7 @@ export default function ConnectWalletButton({ style, className, ...props }) {
             if (err?.message?.includes('rejected') || err?.code === 4001) {
               alert('Connection rejected. Please approve the connection in MetaMask.');
             } else if (!window.ethereum) {
-              alert('No wallet extension detected. Please install MetaMask from metamask.io, then refresh the page.');
+              alert('No wallet extension detected. Please install MetaMask from https://metamask.io/download, then refresh the page.');
             } else {
               alert('Failed to connect: ' + (err?.message || 'Unknown error') + '\n\nTry refreshing the page or disabling conflicting extensions.');
             }
@@ -122,7 +127,7 @@ export default function ConnectWalletButton({ style, className, ...props }) {
       return;
     }
 
-    alert('No browser wallet connector is available. Please install MetaMask from metamask.io and refresh the page.');
+    alert('No browser wallet connector is available. Please install MetaMask from https://metamask.io/download and refresh the page.');
   };
 
   return (
@@ -514,7 +519,7 @@ export default function ConnectWalletButton({ style, className, ...props }) {
                         ? 'Open MetaMask app'
                         : providerReady
                           ? 'Extension detected'
-                          : 'Use installed browser extension'
+                          : 'Download MetaMask'
                       }
                     </div>
                   </div>
