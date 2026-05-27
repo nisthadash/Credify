@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useAccount, useChainId, useWalletClient } from 'wagmi';
-import { CheckCircle2, ShieldAlert, Award, Star, Flame, Compass, ChevronRight, ChevronDown, Share2, ExternalLink, Lock, Unlock, Sparkles, RefreshCw, Zap, Info, Trophy, Sliders, Check } from 'lucide-react';
+import { useAccount } from 'wagmi';
+import { CheckCircle2, ShieldAlert, Award, Star, Flame, Compass, ChevronRight, ChevronDown, Share2, ExternalLink, Lock, Unlock, Sparkles, RefreshCw, Zap, Info, Trophy } from 'lucide-react';
 import { useEligibility } from '../hooks/useEligibility.js';
 import { useUGFClaim } from '../hooks/useUGFClaim.js';
 import { saveClaim, getCredentialsByWallet, getEvents } from '../services/credentialService.js';
@@ -34,7 +34,6 @@ const MOCK_EVENTS = [
 
 export default function LadderPage() {
   const { address, isConnected } = useAccount();
-  const chainId = useChainId();
 
   // Selected Hackathon / Event States
   const [events, setEvents] = useState(MOCK_EVENTS);
@@ -68,31 +67,20 @@ export default function LadderPage() {
   // Load actual claimed credentials
   const [credentials, setCredentials] = useState([]);
 
-  // On-chain owner and eligibility checks
-  const { data: walletClient } = useWalletClient();
-  const [contractOwner, setContractOwner] = useState('');
+  // On-chain eligibility checks
   const [onchainEligible, setOnchainEligible] = useState(false);
   const [onchainClaimed, setOnchainClaimed] = useState(false);
-  const [checkingOnchain, setCheckingOnchain] = useState(false);
-  const [whitelisting, setWhitelisting] = useState(false);
 
-  const checkOnchainStatus = async () => {
-    if (!address || !eventId) return;
-    setCheckingOnchain(true);
+  const checkOnchainStatus = async (targetEventId = null) => {
+    const activeId = targetEventId || selectedEventId || eventId;
+    if (!address || !activeId) return;
     try {
       const publicClient = createPublicClient({
         chain: baseSepolia,
         transport: http('https://sepolia.base.org')
       });
       
-      const ownerAddress = await publicClient.readContract({
-        address: CONTRACT_ADDRESS,
-        abi: ABI,
-        functionName: 'owner'
-      });
-      setContractOwner(ownerAddress);
-
-      const eventIdBigInt = BigInt('0x' + eventId);
+      const eventIdBigInt = BigInt('0x' + activeId);
 
       const isUserEligible = await publicClient.readContract({
         address: CONTRACT_ADDRESS,
@@ -109,57 +97,22 @@ export default function LadderPage() {
         args: [address, eventIdBigInt]
       });
       setOnchainClaimed(credentialInfo[2]); // Third index is claimed (bool)
-      console.log('[Onchain Check] Owner:', ownerAddress, 'User:', address, 'Eligible:', isUserEligible, 'Claimed:', credentialInfo[2]);
+      console.log('[Onchain Check] User:', address, 'Eligible:', isUserEligible, 'Claimed:', credentialInfo[2]);
     } catch (err) {
       console.error('Error checking onchain status:', err);
-    } finally {
-      setCheckingOnchain(false);
-    }
-  };
-
-  const handleWhitelistOnchain = async () => {
-    if (!walletClient || !address) return;
-    setWhitelisting(true);
-    try {
-      const eventIdBigInt = BigInt('0x' + eventId);
-      console.log('[Onchain Whitelist] Sending addEligible transaction for:', address);
-      const hash = await walletClient.writeContract({
-        address: CONTRACT_ADDRESS,
-        abi: ABI,
-        functionName: 'addEligible',
-        args: [address, eventIdBigInt],
-        chain: baseSepolia,
-      });
-      console.log('[Onchain Whitelist] Transaction sent:', hash);
-      
-      // Wait for 1 confirmation
-      const publicClient = createPublicClient({ chain: baseSepolia, transport: http('https://sepolia.base.org') });
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      console.log('[Onchain Whitelist] Transaction confirmed:', receipt);
-      
-      // Refresh status
-      await checkOnchainStatus();
-      alert('Wallet whitelisted on-chain successfully!');
-    } catch (err) {
-      console.error('Error whitelisting onchain:', err);
-      alert('Failed to whitelist on-chain: ' + (err.shortMessage || err.message || err));
-    } finally {
-      setWhitelisting(false);
     }
   };
 
   useEffect(() => {
-    if (isConnected && address && eventId) {
-      checkOnchainStatus();
+    if (isConnected && address && (selectedEventId || eventId)) {
+      checkOnchainStatus(selectedEventId || eventId);
     } else if (!isConnected || !address) {
-      setContractOwner('');
       setOnchainEligible(false);
       setOnchainClaimed(false);
     }
-  }, [address, isConnected, eventId]);
+  }, [address, isConnected, eventId, selectedEventId]);
 
   const [loadingCredentials, setLoadingCredentials] = useState(false);
-  const [simulateApproval, setSimulateApproval] = useState(false);
 
   // UGF Gasless Claiming States
   const [claimingTier, setClaimingTier] = useState(null);
@@ -212,7 +165,6 @@ export default function LadderPage() {
       setUgfStep('');
       setUgfError('');
       setClaimingTier(null);
-      setSimulateApproval(false);
       resetRealUgf();
     }
   }, [isConnected, address]);
@@ -258,16 +210,13 @@ export default function LadderPage() {
     }
     
     if (level === 0) {
-      if (highestClaimedLevel === -1 && (isEligible || simulateApproval)) {
+      if (highestClaimedLevel === -1 && isEligible) {
         return 'eligible';
       }
       return highestClaimedLevel >= 0 ? 'locked-prereq' : 'locked';
     }
 
     if (level === highestClaimedLevel + 1) {
-      if (simulateApproval) {
-        return 'eligible';
-      }
       return 'awaiting-approval';
     }
 
@@ -281,9 +230,10 @@ export default function LadderPage() {
     
     if (claimingTier.level === 0 && onchainEligible) {
       try {
-        await triggerClaim(address, eventId || selectedEventId || '664cc56a7d7324a0d85485ab', 0);
+        const activeId = eventId || selectedEventId || '664cc56a7d7324a0d85485ab';
+        await triggerClaim(address, activeId, 0);
+        await checkOnchainStatus(activeId);
         await loadCredentials();
-        setSimulateApproval(false);
       } catch (err) {
         console.error('Real UGF claim failed:', err);
         setUgfError(err.message || 'Real UGF claim failed');
@@ -329,24 +279,12 @@ export default function LadderPage() {
         setUgfStep('success');
 
         await loadCredentials();
-        setSimulateApproval(false);
       } catch (err) {
         console.error('Simulated UGF claim failed:', err);
         setUgfError(err.message || 'Simulated UGF claim failed');
         setUgfStep('');
       }
     }
-  };
-
-  const handleResetDemo = () => {
-    localStorage.removeItem('credify_credentials');
-    setCredentials([]);
-    setSimulateApproval(false);
-    setClaimingTier(null);
-    setUgfStep('');
-    setUgfError('');
-    resetRealUgf();
-    alert('Demo reset successfully! All mock credentials have been cleared.');
   };
 
   const getClaimedTxDetails = (level) => {
@@ -654,7 +592,7 @@ export default function LadderPage() {
                     {isAwaiting && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--warning)', fontSize: '0.8rem' }}>
                         <Info size={12} />
-                        <span>Awaiting event criteria completion. Use Developer Tools to simulate.</span>
+                        <span>Awaiting event criteria completion / organizer approval.</span>
                       </div>
                     )}
                   </div>
@@ -796,7 +734,7 @@ export default function LadderPage() {
                     <div className="info-note" style={{ marginBottom: '16px' }}>
                       {claimingTier.level === 0 && !onchainEligible ? (
                         <>
-                          <strong>Simulation Mode:</strong> Since your wallet is not whitelisted on-chain, we are running in simulated gasless claim mode. Whitelist your wallet using Owner helper tools to run the real UGF flow.
+                          <strong>Simulation Mode:</strong> Since your wallet is not whitelisted on-chain, we are running in simulated gasless claim mode. Have the organizer whitelist your wallet in their dashboard to run the real UGF flow.
                         </>
                       ) : (
                         <>
@@ -947,89 +885,6 @@ export default function LadderPage() {
             )}
           </div>
 
-          {/* Demo operator controls for hackathon judges */}
-          <div className="glass-panel" style={{ padding: '24px', border: '1px dashed rgba(255, 255, 255, 0.15)' }}>
-            <h3 style={{ fontSize: '1.2rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Sliders size={18} style={{ color: 'var(--primary)' }} /> Demo Helper Controls
-            </h3>
-            <p style={{ color: 'var(--text-subtle)', fontSize: '0.8rem', lineHeight: 1.4, marginBottom: '16px' }}>
-              Simulate hackathon stage updates to review the progression logic instantly without swapping tabs.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {/* Onchain Whitelist Control for Smart Contract Owner */}
-              {isConnected && contractOwner && address && address.toLowerCase() === contractOwner.toLowerCase() && (
-                <div style={{ 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  gap: '10px', 
-                  padding: '12px 14px', 
-                  background: onchainEligible ? 'rgba(34, 197, 94, 0.05)' : 'rgba(239, 68, 68, 0.05)', 
-                  borderRadius: 'var(--radius-md)', 
-                  border: onchainEligible ? '1px solid rgba(34, 197, 94, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', color: '#fff' }}>
-                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: onchainEligible ? 'var(--success)' : 'var(--error)' }}></span>
-                        Onchain Whitelist Status
-                      </div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                        {onchainEligible ? 'Whitelisted (Ready for UGF claim)' : 'Not Whitelisted (UGF will fail)'}
-                      </div>
-                    </div>
-                    {!onchainEligible && (
-                      <button 
-                        onClick={handleWhitelistOnchain}
-                        disabled={whitelisting}
-                        className="btn btn-sm btn-primary"
-                        style={{ 
-                          fontSize: '11px', 
-                          padding: '6px 12px', 
-                          height: 'auto',
-                          background: 'var(--primary)',
-                          color: '#000',
-                          fontWeight: 700
-                        }}
-                      >
-                        {whitelisting ? 'Whitelisting...' : 'Whitelist Me'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {isConnected && highestClaimedLevel < 4 && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(255,255,255,0.04)' }}>
-                  <div>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>Approve Stage Upgrade</div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>Unlock: {TIERS[highestClaimedLevel + 1]?.name}</div>
-                  </div>
-                  <button 
-                    onClick={() => setSimulateApproval(!simulateApproval)}
-                    className="btn btn-sm"
-                    style={{ 
-                      background: simulateApproval ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255,255,255,0.05)',
-                      border: simulateApproval ? '1px solid var(--success)' : '1px solid rgba(255,255,255,0.1)',
-                      color: simulateApproval ? 'var(--success)' : 'var(--text-muted)',
-                      fontWeight: 600
-                    }}
-                  >
-                    {simulateApproval ? 'Approved' : 'Approve'}
-                  </button>
-                </div>
-              )}
-
-              <button 
-                onClick={handleResetDemo}
-                className="btn btn-sm btn-ghost btn-full"
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-              >
-                <RefreshCw size={12} />
-                Reset Demo Progression
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
