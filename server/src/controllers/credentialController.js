@@ -284,6 +284,7 @@ const upgradeCredential = async (req, res, next) => {
     // Update credential state
     credential.tier = tierName.toLowerCase();
     credential.status = 'upgraded';
+    credential.isRevoked = false;
     
     // Dynamically regenerate metadata URI to reflect updated tier level
     const protocol = req.protocol;

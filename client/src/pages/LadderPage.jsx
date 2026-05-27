@@ -40,6 +40,9 @@ export default function LadderPage() {
   const [events, setEvents] = useState(MOCK_EVENTS);
   const [selectedEventId, setSelectedEventId] = useState('664cc56a7d7324a0d85485ab');
 
+  // Standard eligibility check for Event Pass (Tier 0)
+  const { checked, isEligible, eventTitle, eventId, loading: loadingEligibility } = useEligibility(address, isConnected, selectedEventId);
+
   // Load events from database if available
   useEffect(() => {
     const loadApiEvents = async () => {
@@ -164,9 +167,6 @@ export default function LadderPage() {
   const [txDetails, setTxDetails] = useState({ tokenId: null, txHash: '', tier: '', metadataUri: '' });
   const [ugfError, setUgfError] = useState('');
 
-  // Standard eligibility check for Event Pass (Tier 0)
-  const { checked, isEligible, eventTitle, eventId, loading: loadingEligibility } = useEligibility(address, isConnected, selectedEventId);
-
   // Dynamically resolve active event title from either selected mock list or eligibility result
   const activeEvent = events.find(e => e._id === selectedEventId);
   const activeEventTitle = activeEvent ? activeEvent.title : (eventTitle || 'Credify Hackathon Ladder');
@@ -233,7 +233,10 @@ export default function LadderPage() {
   // Computed state calculations
   const claimedLevels = new Set(
     credentials
-      .filter(c => c.eventId === selectedEventId)
+      .filter(c => {
+        const cEventId = typeof c.eventId === 'object' ? c.eventId?._id : c.eventId;
+        return cEventId === selectedEventId;
+      })
       .map(c => c.tierLevel)
   );
   if (onchainClaimed && selectedEventId === '664cc56a7d7324a0d85485ab') {
@@ -242,6 +245,11 @@ export default function LadderPage() {
   const highestClaimedLevel = claimedLevels.size > 0 
     ? Math.max(...Array.from(claimedLevels)) 
     : -1;
+
+  // For a progressive ladder, unlocking a higher tier automatically unlocks/claims all preceding tiers.
+  for (let l = 0; l <= highestClaimedLevel; l++) {
+    claimedLevels.add(l);
+  }
 
   // Determine stage status
   const getTierStatus = (level) => {
@@ -342,7 +350,10 @@ export default function LadderPage() {
   };
 
   const getClaimedTxDetails = (level) => {
-    return credentials.find(c => c.tierLevel === level && c.eventId === selectedEventId);
+    return credentials.find(c => {
+      const cEventId = typeof c.eventId === 'object' ? c.eventId?._id : c.eventId;
+      return c.tierLevel === level && cEventId === selectedEventId;
+    });
   };
 
   function startClaimFlow(tier) {

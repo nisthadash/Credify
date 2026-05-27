@@ -21,13 +21,21 @@ const EVENT = {
   tierLevel: 0,
 };
 
+const MOCK_EVENTS = [
+  { _id: '664cc56a7d7324a0d85485ab', title: 'Credify Base Sepolia Workshop', date: '2026-05-30' },
+  { _id: '664cc56a7d7324a0d85485ac', title: 'ETHGlobal London 2026', date: '2026-06-15' },
+  { _id: '664cc56a7d7324a0d85485ad', title: 'Base Builder House Paris', date: '2026-07-02' },
+  { _id: '664cc56a7d7324a0d85485ae', title: 'Superhack 2026', date: '2026-08-10' },
+  { _id: '664cc56a7d7324a0d85485af', title: 'Arbitrum Ascent Hackathon', date: '2026-09-05' }
+];
+
 export default function ClaimPage() {
   const { address, isConnected } = useAccount();
   const navigate = useNavigate();
 
   // Load events and select the first one (or the one user is whitelisted for)
-  const [events, setEvents] = useState([]);
-  const [selectedEventId, setSelectedEventId] = useState(null);
+  const [events, setEvents] = useState(MOCK_EVENTS);
+  const [selectedEventId, setSelectedEventId] = useState('664cc56a7d7324a0d85485ab');
   const [loadingEvents, setLoadingEvents] = useState(false);
 
   // Load events on mount
@@ -36,9 +44,15 @@ export default function ClaimPage() {
       setLoadingEvents(true);
       try {
         const allEvents = await getEvents();
-        setEvents(allEvents || []);
         if (allEvents && allEvents.length > 0) {
-          setSelectedEventId(allEvents[0]._id);
+          // Merge API events with mock events (avoid duplicate _ids)
+          const merged = [...allEvents];
+          MOCK_EVENTS.forEach(mock => {
+            if (!merged.some(e => e._id === mock._id)) {
+              merged.push(mock);
+            }
+          });
+          setEvents(merged);
         }
       } catch (err) {
         console.error('Failed loading events:', err);
@@ -161,6 +175,7 @@ export default function ClaimPage() {
   const isAlreadyClaimedForEvent = hasClaimedThisEvent || onchainClaimed;
 
   const activeEvent = events.find(e => e._id === selectedEventId);
+  const activeEventTitle = eventTitle || (activeEvent ? activeEvent.title : EVENT.name);
   const formattedDate = activeEvent
     ? new Date(activeEvent.date).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
     : EVENT.date;
@@ -176,7 +191,7 @@ export default function ClaimPage() {
       const result = await triggerClaim(address, selectedEventId);
       setTimeout(() => {
         setModalOpen(false);
-        navigate(`/success?tokenId=${result.tokenId}&txHash=${result.txHash}&event=${encodeURIComponent(eventTitle || EVENT.name)}`);
+        navigate(`/success?tokenId=${result.tokenId}&txHash=${result.txHash}&event=${encodeURIComponent(activeEventTitle)}`);
       }, 1200);
     } catch (err) {
       setModalOpen(false);
@@ -259,7 +274,7 @@ export default function ClaimPage() {
                 Event Details
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-                <Row label="Event" value={eventTitle || EVENT.name} />
+                <Row label="Event" value={activeEventTitle} />
                 <Row label="Date" value={formattedDate} />
                 <Row label="Tier" value={<span style={{ color: '#93c5fd', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '5px' }}><Ticket size={13} /> {EVENT.tier} (Tier 0)</span>} />
                 {isConnected && checked && (
@@ -443,7 +458,7 @@ export default function ClaimPage() {
                 </div>
                 <div>
                   <p style={{ fontSize: '20px', fontWeight: 700, fontFamily: 'var(--font-display)', marginBottom: 6 }}>
-                    {eventTitle || EVENT.name}
+                    {activeEventTitle}
                   </p>
                   <p style={{ fontSize: '13px', color: 'var(--text-subtle)' }}>{formattedDate}</p>
                 </div>

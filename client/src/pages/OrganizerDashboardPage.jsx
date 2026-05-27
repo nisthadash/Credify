@@ -16,7 +16,7 @@ import ConnectWalletButton from '../components/wallet/ConnectWalletButton.jsx';
 import { createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
 
-const TIER_NAMES  = { 0: 'Pass', 1: 'Participant', 2: 'Finalist', 3: 'Winner', 4: 'Mentor' };
+const TIER_NAMES  = { 0: 'Event Pass', 1: 'Participant Badge', 2: 'Finalist Badge', 3: 'Winner Certificate', 4: 'Mentor / Volunteer' };
 const TIER_COLORS = { 0: '#93c5fd', 1: '#a5b4fc', 2: '#d8b4fe', 3: '#f9a8d4', 4: '#86efac' };
 
 const TIER_LEVELS = {
@@ -69,6 +69,7 @@ export default function OrganizerDashboardPage() {
   
   // On-chain sync states
   const [onchainEligibleMap, setOnchainEligibleMap] = useState({});
+  const [onchainRevokedMap, setOnchainRevokedMap] = useState({});
   const [checkingOnchainMap, setCheckingOnchainMap] = useState(false);
   const [syncingWallet, setSyncingWallet] = useState(null);
 
@@ -94,6 +95,7 @@ export default function OrganizerDashboardPage() {
       
       const eventIdBigInt = BigInt('0x' + eventId);
       const map = {};
+      const revokedMap = {};
       await Promise.all(
         participantsList.map(async (p) => {
           try {
@@ -104,15 +106,26 @@ export default function OrganizerDashboardPage() {
               args: [p.walletAddress, eventIdBigInt]
             });
             map[p.walletAddress.toLowerCase()] = isEligible;
+
+            // Fetch on-chain credential to check if it's revoked
+            const credentialInfo = await publicClient.readContract({
+              address: activeContractAddress,
+              abi: ABI,
+              functionName: 'getCredential',
+              args: [p.walletAddress, eventIdBigInt]
+            });
+            revokedMap[p.walletAddress.toLowerCase()] = Boolean(credentialInfo[3]); // 4th item is revoked (bool)
           } catch (err) {
-            console.error(`Failed to check onchain eligibility for ${p.walletAddress}:`, err);
+            console.error(`Failed to check onchain status for ${p.walletAddress}:`, err);
             map[p.walletAddress.toLowerCase()] = false;
+            revokedMap[p.walletAddress.toLowerCase()] = false;
           }
         })
       );
       setOnchainEligibleMap(prev => ({ ...prev, ...map }));
+      setOnchainRevokedMap(prev => ({ ...prev, ...revokedMap }));
     } catch (err) {
-      console.error('Error checking onchain eligibility map:', err);
+      console.error('Error checking onchain map:', err);
     } finally {
       setCheckingOnchainMap(false);
     }
@@ -425,40 +438,54 @@ export default function OrganizerDashboardPage() {
   };
 
   // Upgrade Credential Action (On-Chain + DB Sync)
-  const handleUpgrade = async (participant) => {
+  const handleUpgrade = async (participant, targetTierLevel = null) => {
     if (participant.tokenId === null) {
       showToast('User has not claimed their initial event pass yet.');
       return;
     }
     const currentTier = getTierLevel(participant.tier);
-    if (currentTier >= 4) {
+    if (currentTier >= 4 && targetTierLevel === null && participant.status !== 'revoked') {
       showToast('User is already at the highest level (Mentor).');
       return;
     }
-    const nextTier = currentTier + 1;
+    const nextTier = targetTierLevel !== null ? targetTierLevel : (currentTier + 1);
 
-    const hasContract = activeContractAddress && activeContractAddress !== '0x0000000000000000000000000000000000000000';
+    const isRevokedOnchain = Boolean(onchainRevokedMap[participant.walletAddress.toLowerCase()]);
+    const isRestoreOrDowngrade = participant.status === 'revoked' || isRevokedOnchain || nextTier <= currentTier;
+
+    const hasContract = Boolean(
+      !isRestoreOrDowngrade &&
+      activeEvent &&
+      activeContractAddress &&
+      activeContractAddress !== '0x0000000000000000000000000000000000000000' &&
+      (activeEvent.contractAddress ? true : canWriteOnchain)
+    );
 
     if (!hasContract) {
-      // Fallback: DB-only upgrade
+      // Fallback: DB-only upgrade/restore
       setUpgradingWallet(participant.walletAddress);
       try {
         const data = await apiFetch('/credentials/upgrade', {
           method: 'POST',
           body: JSON.stringify({
             tokenId: participant.tokenId,
-            newTierLevel: nextTier
+            newTierLevel: nextTier,
+            eventId: activeEvent._id
           })
         });
         if (data && data.success) {
-          showToast(`Successfully upgraded to ${TIER_NAMES[nextTier]} (Database-only Mode)`);
+          const isRestore = participant.status === 'revoked';
+          showToast(isRestore
+            ? `Successfully restored & un-revoked to ${TIER_NAMES[nextTier]} (Database Sync)`
+            : `Successfully changed to ${TIER_NAMES[nextTier]} (Database Sync)`
+          );
           loadParticipants(activeEvent._id);
         } else {
-          showToast(data.message || 'Upgrade failed.');
+          showToast(data.message || 'Upgrade/Restore failed.');
         }
       } catch (err) {
-        console.error('Upgrade error:', err);
-        showToast('Connection error. Could not upgrade.');
+        console.error('Upgrade/Restore error:', err);
+        showToast('Connection error. Could not upgrade/restore.');
       } finally {
         setUpgradingWallet(null);
       }
@@ -506,7 +533,8 @@ export default function OrganizerDashboardPage() {
         method: 'POST',
         body: JSON.stringify({
           tokenId: participant.tokenId,
-          newTierLevel: nextTier
+          newTierLevel: nextTier,
+          eventId: activeEvent._id
         })
       });
 
@@ -531,7 +559,14 @@ export default function OrganizerDashboardPage() {
     }
 
     if (window.confirm(`Are you sure you want to revoke the credential for ${participant.walletAddress}? This cannot be undone.`)) {
-      const hasContract = activeContractAddress && activeContractAddress !== '0x0000000000000000000000000000000000000000';
+      const isRevokedOnchain = Boolean(onchainRevokedMap[participant.walletAddress.toLowerCase()]);
+      const hasContract = Boolean(
+        !isRevokedOnchain &&
+        activeEvent &&
+        activeContractAddress &&
+        activeContractAddress !== '0x0000000000000000000000000000000000000000' &&
+        (activeEvent.contractAddress ? true : canWriteOnchain)
+      );
 
       if (!hasContract) {
         // Fallback: DB-only revocation
@@ -1030,32 +1065,84 @@ export default function OrganizerDashboardPage() {
                                     </a>
                                   )}
                                   {p.status === 'revoked' ? (
-                                    <span style={{ fontSize: '11px', color: 'var(--error)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                      <Ban size={11} /> Revoked
-                                    </span>
-                                  ) : p.tokenId !== null ? (
                                     <>
-                                      {tierLvl < 4 ? (
-                                        <button 
-                                          onClick={() => handleUpgrade(p)} 
-                                          disabled={isUpgrading}
-                                          className="btn btn-secondary btn-sm" 
-                                          style={{ gap: '4px' }}
-                                        >
-                                          {isUpgrading ? 'Upgrading...' : `Upgrade (${TIER_NAMES[tierLvl + 1]})`}
-                                        </button>
-                                      ) : (
-                                        <span style={{ fontSize: '11px', color: '#86efac', fontWeight: 600 }}>Max Tier Reached</span>
-                                      )}
+                                      <span style={{ fontSize: '11px', color: 'var(--error)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                        <Ban size={11} /> Revoked
+                                      </span>
                                       <button 
-                                        onClick={() => handleRevoke(p)} 
-                                        disabled={isRevokingWallet === p.walletAddress}
-                                        className="btn btn-danger btn-sm" 
-                                        style={{ gap: '4px', display: 'inline-flex', alignItems: 'center' }}
+                                        onClick={() => handleUpgrade(p, getTierLevel(p.tier))}
+                                        disabled={isUpgrading}
+                                        className="btn btn-secondary btn-sm"
+                                        style={{ gap: '4px' }}
                                       >
-                                        {isRevokingWallet === p.walletAddress ? 'Revoking...' : <><XCircle size={11} /> Revoke</>}
+                                        {isUpgrading ? 'Restoring...' : 'Restore (Un-revoke)'}
                                       </button>
+                                      <select
+                                        disabled={isUpgrading}
+                                        onChange={(e) => {
+                                          const selectedTier = Number(e.target.value);
+                                          handleUpgrade(p, selectedTier);
+                                          e.target.value = "";
+                                        }}
+                                        defaultValue=""
+                                        className="btn btn-secondary btn-sm"
+                                        style={{
+                                          padding: '4px 8px',
+                                          fontSize: '12px',
+                                          fontWeight: 600,
+                                          cursor: 'pointer',
+                                          border: '1px solid rgba(255,255,255,0.1)',
+                                          background: 'var(--surface-alt)',
+                                          color: '#fff',
+                                          borderRadius: '6px'
+                                        }}
+                                      >
+                                        <option value="" disabled>Upgrade/Change to...</option>
+                                        {Object.keys(TIER_NAMES)
+                                          .map(Number)
+                                          .filter(lvl => lvl !== getTierLevel(p.tier))
+                                          .map(lvl => (
+                                            <option key={lvl} value={lvl} style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}>
+                                              {lvl > getTierLevel(p.tier) ? `Upgrade to ${TIER_NAMES[lvl]}` : `Restore/Downgrade to ${TIER_NAMES[lvl]}`}
+                                            </option>
+                                          ))}
+                                      </select>
                                     </>
+                                  ) : p.tokenId !== null ? (
+                                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                      <select
+                                        disabled={isUpgrading}
+                                        onChange={(e) => {
+                                          const selectedTier = Number(e.target.value);
+                                          if (selectedTier !== tierLvl) {
+                                            handleUpgrade(p, selectedTier);
+                                          }
+                                          e.target.value = "";
+                                        }}
+                                        defaultValue=""
+                                        className="btn btn-secondary btn-sm"
+                                        style={{
+                                          padding: '4px 8px',
+                                          fontSize: '12px',
+                                          fontWeight: 600,
+                                          cursor: 'pointer',
+                                          border: '1px solid rgba(255,255,255,0.1)',
+                                          background: 'var(--surface-alt)',
+                                          color: '#fff',
+                                          borderRadius: '6px'
+                                        }}
+                                      >
+                                        <option value="" disabled>{isUpgrading ? 'Processing...' : 'Change/Upgrade Tier...'}</option>
+                                        {Object.keys(TIER_NAMES)
+                                          .map(Number)
+                                          .filter(lvl => lvl !== tierLvl)
+                                          .map(lvl => (
+                                            <option key={lvl} value={lvl} style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}>
+                                              {lvl > tierLvl ? `Upgrade to ${TIER_NAMES[lvl]}` : `Restore/Downgrade to ${TIER_NAMES[lvl]}`}
+                                            </option>
+                                          ))}
+                                      </select>
+                                    </div>
                                   ) : (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                       <span style={{ fontSize: '11px', color: 'var(--text-subtle)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
@@ -1072,6 +1159,16 @@ export default function OrganizerDashboardPage() {
                                         </button>
                                       )}
                                     </div>
+                                  )}
+                                  {p.status !== 'revoked' && p.tokenId !== null && (
+                                      <button 
+                                        onClick={() => handleRevoke(p)} 
+                                        disabled={isRevokingWallet === p.walletAddress}
+                                        className="btn btn-danger btn-sm" 
+                                        style={{ gap: '4px', display: 'inline-flex', alignItems: 'center' }}
+                                      >
+                                        {isRevokingWallet === p.walletAddress ? 'Revoking...' : <><XCircle size={11} /> Revoke</>}
+                                      </button>
                                   )}
                                 </div>
                               </td>
@@ -1109,7 +1206,7 @@ export default function OrganizerDashboardPage() {
                   </div>
                 )}
 
-                {participants.filter(p => p.tokenId !== null && getTierLevel(p.tier) < 4).length === 0 ? (
+                {participants.filter(p => p.tokenId !== null).length === 0 ? (
                   <div style={{ padding: '48px', textAlign: 'center', color: 'var(--text-muted)' }}>
                     <Award size={32} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
                     <p style={{ fontSize: '14px' }}>No participants are currently eligible for upgrades.</p>
@@ -1126,7 +1223,7 @@ export default function OrganizerDashboardPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {participants.filter(p => p.tokenId !== null && getTierLevel(p.tier) < 4).map((p, i) => {
+                        {participants.filter(p => p.tokenId !== null).map((p, i) => {
                           const tierLvl = getTierLevel(p.tier);
                           const isUpgrading = upgradingWallet === p.walletAddress;
                           return (
@@ -1161,29 +1258,42 @@ export default function OrganizerDashboardPage() {
                                   alignItems: 'center',
                                   gap: '8px'
                                 }}>
-                                  {TIER_NAMES[tierLvl + 1]}
+                                  {tierLvl < 4 ? TIER_NAMES[tierLvl + 1] : 'Max'}
                                 </span>
                               </td>
                               <td>
-                                <button 
-                                  onClick={() => handleUpgrade(p)} 
+                                <select
                                   disabled={isUpgrading || (isConnected && contractOwner && connectedAddress.toLowerCase() !== contractOwner.toLowerCase())}
-                                  className="btn btn-primary btn-sm" 
+                                  onChange={(e) => {
+                                    const selectedTier = Number(e.target.value);
+                                    if (selectedTier !== tierLvl) {
+                                      handleUpgrade(p, selectedTier);
+                                    }
+                                    e.target.value = "";
+                                  }}
+                                  defaultValue=""
+                                  className="btn btn-primary btn-sm"
                                   style={{ 
-                                    gap: '6px', 
-                                    background: TIER_COLORS[tierLvl + 1], 
-                                    color: '#000', 
-                                    fontWeight: 700 
+                                    padding: '6px 12px', 
+                                    fontSize: '12px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    border: 'none',
+                                    background: TIER_COLORS[tierLvl] || 'var(--primary)',
+                                    color: '#000',
+                                    borderRadius: '6px'
                                   }}
                                 >
-                                  {isUpgrading ? (
-                                    'Processing...'
-                                  ) : (
-                                    <>
-                                      <ArrowUp size={11} /> Approve Upgrade
-                                    </>
-                                  )}
-                                </button>
+                                  <option value="" disabled>{isUpgrading ? 'Processing...' : 'Change/Upgrade Tier...'}</option>
+                                  {Object.keys(TIER_NAMES)
+                                    .map(Number)
+                                    .filter(lvl => lvl !== tierLvl)
+                                    .map(lvl => (
+                                      <option key={lvl} value={lvl} style={{ background: 'var(--surface-alt)', color: 'var(--text)' }}>
+                                        {lvl > tierLvl ? `Upgrade to ${TIER_NAMES[lvl]}` : `Restore/Downgrade to ${TIER_NAMES[lvl]}`}
+                                      </option>
+                                    ))}
+                                </select>
                               </td>
                             </tr>
                           );
