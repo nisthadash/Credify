@@ -9,6 +9,7 @@ import MyCredentialsPage from '../pages/MyCredentialsPage.jsx';
 import VerifyPage from '../pages/VerifyPage.jsx';
 import OrganizerLoginPage from '../pages/OrganizerLoginPage.jsx';
 import OrganizerDashboardPage from '../pages/OrganizerDashboardPage.jsx';
+import OrganizerOnboardingPage from '../pages/OrganizerOnboardingPage.jsx';
 
 export default function AppRoutes() {
   return (
@@ -21,6 +22,7 @@ export default function AppRoutes() {
       <Route path="/my-credentials" element={<MyCredentialsPage />} />
       <Route path="/verify" element={<VerifyPage />} />
       <Route path="/organizer/login" element={<OrganizerLoginPage />} />
+      <Route path="/organizer/onboarding" element={<OrganizerOnboardingPage />} />
       <Route path="/organizer/dashboard" element={<OrganizerDashboardPage />} />
       {/* Catch-all redirect */}
       <Route path="*" element={<Navigate to="/" replace />} />

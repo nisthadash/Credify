@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import logo from '../assets/logo.png';
 import apiFetch from '../services/api.js';
 import { useAccount } from 'wagmi';
@@ -58,10 +58,9 @@ export default function OrganizerLoginPage() {
         }));
         navigate('/organizer/dashboard');
       } else {
-        setError(data.message || 'Login failed. Please check your credentials.');
+        setError(data.message || 'Login failed. Check your credentials.');
       }
     } catch (err) {
-      console.error('Login error:', err);
       setError('Connection to backend failed. Please ensure the server is running.');
     } finally {
       setLoading(false);
@@ -141,26 +140,13 @@ Issued At: ${issuedAt}`;
 
   return (
     <div className="page-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: '100%', maxWidth: '420px' }}>
+      <div style={{ width: '100%', maxWidth: '440px' }}>
 
-        {/* Icon + title */}
+        {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '36px' }}>
-          <img 
-            src={logo} 
-            alt="Credify Logo" 
-            style={{
-              width: '56px',
-              height: '56px',
-              borderRadius: '50%',
-              objectFit: 'cover',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              boxShadow: '0 0 16px rgba(37, 99, 235, 0.25)',
-              margin: '0 auto 16px',
-              display: 'block',
-            }}
-          />
-          <h1 style={{ fontSize: '24px', marginBottom: '6px' }}>Organizer Login</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Access the Credify admin dashboard</p>
+          <img src={logo} alt="Credify Logo" style={{ width: '56px', height: '56px', borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 0 16px rgba(37,99,235,0.25)', margin: '0 auto 16px', display: 'block' }} />
+          <h1 style={{ fontSize: '24px', marginBottom: '6px' }}>Organizer Portal</h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Sign in with your Ethereum wallet to manage events</p>
         </div>
 
         {/* Form Card */}
@@ -291,8 +277,7 @@ Issued At: ${issuedAt}`;
           )}
         </div>
 
-        {/* Demo hint */}
-        <div className="info-note" style={{ marginTop: '16px', textAlign: 'center' }}>
+        <div className="info-note" style={{ marginTop: '16px', textAlign: 'center', fontSize: '12px' }}>
           Demo: <span style={{ fontFamily: 'var(--font-mono)' }}>organizer@credify.app</span> / <span style={{ fontFamily: 'var(--font-mono)' }}>credify2026</span>
         </div>
       </div>

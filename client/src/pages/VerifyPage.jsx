@@ -206,6 +206,12 @@ export default function VerifyPage() {
             <HelpCircle size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} /> Try Token ID <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>42</span> or any wallet address to see demo verification.
           </p>
         )}
+
+        {/* Use-case note */}
+        <div style={{ marginTop: '32px', padding: '14px 18px', borderRadius: '12px', background: 'rgba(129,140,248,0.04)', border: '1px solid rgba(129,140,248,0.12)', fontSize: '13px', color: 'rgba(255,255,255,0.38)', lineHeight: 1.7, display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+          <span style={{ fontSize: '15px', flexShrink: 0 }}>🔗</span>
+          <span>Verified credentials can be used as <strong style={{ color: 'rgba(255,255,255,0.58)' }}>Discord role proof</strong>, embedded in <strong style={{ color: 'rgba(255,255,255,0.58)' }}>GitHub README</strong> badges, or added to <strong style={{ color: 'rgba(255,255,255,0.58)' }}>LinkedIn</strong> certifications — visit your profile page after claiming.</span>
+        </div>
       </div>
     </div>
   );

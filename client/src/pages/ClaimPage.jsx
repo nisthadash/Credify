@@ -462,6 +462,14 @@ export default function ClaimPage() {
         </div>
       </div>
 
+      {/* Integration hint */}
+      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 clamp(16px, 4vw, 32px)', marginTop: '12px' }}>
+        <div style={{ padding: '12px 16px', borderRadius: '10px', background: 'rgba(129,140,248,0.05)', border: '1px solid rgba(129,140,248,0.12)', fontSize: '13px', color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+          <span style={{ fontSize: '16px', flexShrink: 0 }}>💡</span>
+          <span>After claiming, your credential can unlock <strong style={{ color: 'rgba(255,255,255,0.65)' }}>Discord roles</strong>, <strong style={{ color: 'rgba(255,255,255,0.65)' }}>GitHub README badges</strong>, and <strong style={{ color: 'rgba(255,255,255,0.65)' }}>LinkedIn certifications</strong> — all from your profile page.</span>
+        </div>
+      </div>
+
       <UGFProgressModal
         isOpen={modalOpen}
         onClose={() => !isRunning && setModalOpen(false)}
